@@ -1,17 +1,14 @@
-node_modules
-.env
+# Rust / Cargo
+/target
+**/*.rs.bk
 
-# Hardhat files
-/cache
-/artifacts
+# Soroban build artifacts
+*.wasm
 
-# TypeChain files
-/typechain
-/typechain-types
+# Soroban test snapshots (regenerated on every `cargo test`)
+**/test_snapshots/
 
-# solidity-coverage files
-/coverage
-/coverage.json
-
-# Hardhat Ignition default folder for deployments against a local node
-ignition/deployments/chain-31337
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store

@@ -1,289 +1,80 @@
-# UnifiedLendingDAO Smart Contract
+# OurDAO — Stellar Soroban Lending DAO
 
-A comprehensive, all-in-one Solidity smart contract implementing an advanced Decentralized Autonomous Organization (DAO) for peer-to-peer lending with privacy, governance, and yield generation features built with Hardhat v2.
+A member-owned lending DAO implemented as a [Soroban](https://developers.stellar.org/docs/build/smart-contracts) smart contract in Rust.
 
-## ✨ Key Features
+This is a ground-up reimplementation of the original EVM `UnifiedLendingDAO` (Solidity) for the Stellar network. It is **not** a line-by-line translation — the execution model, storage, authorization, and value transfer are all Soroban-native. All DAO value flows through a single configurable token set at initialization (USDC, XLM via the Stellar Asset Contract, or any Stellar asset).
 
-### 🏛️ Core DAO Functionality
-- **Decentralized Lending**: P2P loan system with automated approval and dynamic interest rates
-- **Democratic Governance**: Member-driven proposal and voting system
-- **Treasury Management**: Secure fund management with multi-signature controls
-- **Admin Controls**: Role-based access control and emergency functions
+## What the DAO does
 
-### 🔐 Privacy & Security
-- **Private Voting**: Anonymous voting system with commitment schemes
-- **Confidential Loans**: Private loan amounts and terms
-- **Privacy Levels**: Configurable privacy settings (Basic, Enhanced, Maximum)
-- **ENS Integration**: Domain-based identity and weighted voting
+- **Governance** — a set of admins, a basis-points consensus threshold (default 51%), and tunable loan policy.
+- **Membership** — anyone can join by paying a membership fee in the DAO token; the fee becomes their share in the treasury. Members can exit and withdraw their pro-rata share.
+- **Lending** — members request loans that go through an editable draft phase, then member voting; on approval the principal is disbursed from the treasury. Repayment returns principal to the treasury and distributes interest to members as claimable yield.
+- **Treasury** — members propose withdrawals to any destination; execution requires a higher (60%) consensus.
+- **Safety** — admin pause/unpause and extensive view functions.
 
-### 💰 Advanced Financial Features
-- **Yield Generation**: Treasury optimization through restaking protocols
-- **Dynamic Interest**: Rates based on treasury utilization and risk assessment
-- **Reward Distribution**: Automated interest and yield sharing among members
-- **Multi-Asset Support**: ETH-based operations with extensible architecture
+## Stellar-native replacements for the EVM extensions
 
-### 📄 Document Management
-- **IPFS Storage**: Decentralized document storage for loans and governance
-- **Access Control**: Private and public document permissions
-- **Automatic Backup**: Scheduled DAO state preservation
-- **KYC Support**: Member verification document management
+The original contract carried four Ethereum-ecosystem integrations with no Soroban equivalent. Each is replaced by a real, working Stellar-native feature:
 
-## Architecture
+| Original EVM extension | Soroban-native replacement | Module |
+|---|---|---|
+| ENS governance (naming) | On-chain **name registry** (name ⇄ address) | `registry.rs` |
+| Filecoin storage | **Content-hash metadata** — anchor an IPFS CID / digest to a proposal | `docs.rs` |
+| FHE encrypted voting | **Commit-reveal voting** for private treasury proposals | `privacy.rs` |
+| Symbiotic restaking | **Staking** for a capped voting-weight boost | `staking.rs` |
 
-### Unified Contract Structure
-
-The project uses a **unified contract architecture** where all features are consolidated into a single, comprehensive smart contract:
+## Layout
 
 ```
-UnifiedLendingDAO.sol (Main Contract)
-├── Core DAO Features ✓
-├── ENS Integration ✓
-├── Privacy Features ✓
-├── Document Storage ✓
-├── Restaking Integration ✓
-└── Frontend APIs ✓
+contracts/dao/
+  src/
+    lib.rs         # contract entrypoints (the public ABI) + views
+    admin.rs       # init, admins, threshold, policy, pause
+    membership.rs  # join, exit, claim yield, exit-share math
+    loans.rs       # request -> edit -> vote -> disburse -> repay -> interest
+    treasury.rs    # propose -> vote -> execute (shared tally)
+    registry.rs    # name registry (ENS analog)
+    docs.rs        # content-hash proposal metadata (Filecoin analog)
+    privacy.rs     # commit-reveal voting (FHE analog)
+    staking.rs     # voting-weight staking (Symbiotic analog)
+    storage.rs     # typed storage keys + TTL management
+    types.rs       # data model + constants
+    error.rs       # contract error codes
+    util.rs        # token client, auth guards, vote math
+    test.rs        # full test suite
 ```
 
-### Supporting Contracts
+## Build & test
 
-1. **`IDAO.sol`** - Complete interface definitions
-2. **`DAOErrors.sol`** - Gas-efficient error library
-3. **`extensions/`** - ENS and Filecoin integration modules
-4. **`interfaces/`** - External protocol interfaces
-5. **`mocks/`** - Testing infrastructure
-
-### Unified Benefits
-
-- **Single Deployment**: One contract handles all features
-- **Gas Optimized**: Shared state and reduced external calls
-- **Simplified Integration**: Single ABI for all functionality
-- **Feature Toggles**: Enable/disable features as needed
-- **Comprehensive Testing**: All features tested together
-
-## Installation & Setup
+Requires the Rust `wasm32v1-none` target (Rust 1.84+) and the [`stellar` CLI](https://developers.stellar.org/docs/tools/developer-tools/cli/stellar-cli).
 
 ```bash
-# Install dependencies
-npm install
+# Native unit tests
+cargo test
 
-# Compile contracts
-npx hardhat compile
+# Release wasm
+cargo build --target wasm32v1-none --release
 
-# Run tests
-npx hardhat test
-
-# Deploy to local network
-npx hardhat node
-npx hardhat ignition deploy ignition/modules/LendingDAO.ts --network localhost
+# Optimized, deployment-ready wasm
+stellar contract build --optimize
 ```
 
-## Contract Configuration
+> **Note on dependencies:** `Cargo.lock` pins `ed25519-dalek` to `2.2.0`. A newer
+> transitive release (`3.0.0`) is incompatible with the pinned `rand_core` used by
+> `soroban-env-host` and breaks the test build if allowed to float. The lockfile is
+> committed to keep builds reproducible.
 
-### Default Parameters
-- **Membership Fee**: 1 ETH
-- **Consensus Threshold**: 51% (5100 basis points)
-- **Proposal Editing Period**: 3 days (for loan proposals)
-- **Voting Period**: 7 days
-- **Min Membership Duration**: 30 days (before loan eligibility)
-- **Max Loan Duration**: 1 year
-- **Interest Rate Range**: 5% - 20%
-- **Cooldown Period**: 90 days between loans
+## Deploy (example)
 
-### Loan Policy
-The DAO uses dynamic interest rates based on loan-to-treasury ratio:
-- Higher loan amounts relative to treasury = higher interest rates
-- Interest rates automatically calculated within configured range
-- Maximum loan duration and cooldown periods enforced
-
-## Usage Examples
-
-### 1. Initialize DAO
-```solidity
-// Deploy and initialize
-LendingDAO dao = new LendingDAO();
-dao.initialize(
-    [admin1, admin2], // Initial admins
-    5100,             // 51% consensus threshold
-    1 ether,          // 1 ETH membership fee
-    loanPolicy        // Loan policy struct
-);
-```
-
-### 2. Member Lifecycle
-```solidity
-// 1. Register as member (direct payment)
-dao.registerMember{value: 1 ether}();
-
-// 2. Exit DAO (withdraw proportional share)
-dao.exitDAO();
-```
-
-### 3. Loan Lifecycle
-```solidity
-// 1. Request loan (by eligible member) - starts in EDITING phase
-uint256 loanProposalId = dao.requestLoan(5 ether);
-
-// 2. Edit proposal during editing period (3 days)
-dao.editLoanProposal(loanProposalId, 4 ether); // Change amount
-
-// 3. Vote on loan after editing period (by other members)
-// Note: Proposal owner cannot vote on their own proposal
-dao.voteOnLoanProposal(loanProposalId, true);
-
-// 4. Repay loan (by borrower)
-dao.repayLoan{value: totalRepaymentAmount}(loanId);
-
-// 5. Claim interest rewards (by members)
-dao.claimRewards();
-```
-
-### 4. Treasury Management
-```solidity
-// Propose treasury withdrawal
-uint256 proposalId = dao.proposeTreasuryWithdrawal(
-    1 ether,
-    destinationAddress,
-    "Development costs"
-);
-
-// Vote on treasury proposal
-dao.voteOnTreasuryProposal(proposalId, true);
-```
-
-### 5. Advanced Features
-
-#### Privacy Features
-```solidity
-// Enable privacy features
-dao.setPrivacyLevel(2); // Enhanced privacy
-
-// Request confidential loan
-bytes32 commitment = keccak256(abi.encodePacked("secret_amount", block.timestamp));
-uint256 proposalId = dao.requestLoan(0, true, commitment, "");
-
-// Private voting (emits PrivateVoteCast event)
-dao.voteOnLoanProposal(proposalId, true);
-```
-
-#### ENS Integration
-```solidity
-// Register with ENS name for weighted voting
-dao.registerMember("alice.eth", "QmKYCHash", {value: 1 ether});
-
-// Enable ENS voting weights
-dao.toggleFeature("ensVoting", true);
-```
-
-#### Restaking & Yield
-```solidity
-// Enable restaking features
-dao.toggleFeature("restaking", true);
-
-// Approve restaking operators
-dao.approveOperator(operatorAddress, "Validator Alpha", 800); // 8% APY
-
-// Allocate treasury to restaking
-dao.allocateToRestaking(5 ether);
-
-// Distribute yield to members
-dao.distributeYield(1 ether);
-
-// Members claim their yield
-dao.claimYield();
-dao.claimAllRewards(); // Claim both interest and yield
-```
-
-#### Document Storage
-```solidity
-// Store loan documents
-dao.storeLoanDocument(loanId, "QmDocumentHash");
-
-// Request loan with supporting documents
-dao.requestLoan(amount, false, bytes32(0), "QmProposalDocHash");
-```
-
-## Security Features
-
-- **Access Control**: Role-based permissions (admins vs members)
-- **Reentrancy Protection**: ReentrancyGuard on financial functions
-- **Pausable**: Emergency pause functionality
-- **Input Validation**: Comprehensive validation with custom errors
-- **Vote Prevention**: Members cannot vote on their own proposals
-- **Time-based Controls**: Voting periods and cooldown periods
-
-## Events
-
-The contract emits comprehensive events for all operations:
-- Membership events (proposed, approved, activated, exited)
-- Loan events (requested, approved, disbursed, repaid)
-- Treasury events (withdrawals proposed, executed)
-- Interest distribution events
-- Admin and policy change events
-
-## Error Handling
-
-Custom error library provides clear, gas-efficient error messages:
-- Access control errors (NotAdmin, NotMember)
-- Membership errors (AlreadyMember, IncorrectMembershipFee)
-- Loan errors (NotEligibleForLoan, LoanNotActive)
-- Treasury errors (InsufficientTreasuryBalance)
-- Voting errors (AlreadyVoted, VotingPeriodEnded)
-
-## Bootstrap Problem Solution
-
-With the new direct membership registration system, the bootstrap problem is greatly simplified:
-1. **Direct Registration**: Anyone can join by paying the membership fee directly
-2. **No Voting Required**: No need for existing members to approve new members
-3. **Immediate Access**: New members can participate in governance immediately after joining
-
-Note: Admins still need to be set during initialization for DAO management functions.
-
-## Documentation
-
-For detailed contract documentation, function references, and integration guides, see:
-- **[📖 Complete Contract Guide](./docs/CONTRACTS_GUIDE.md)** - Comprehensive documentation with examples
-- **[🧪 Test Files](./test/)** - Extensive test suite with usage examples
-- **[📜 Contract Interfaces](./contracts/IDAO.sol)** - Complete function signatures and events
-
-## Testing
-
-The project includes comprehensive tests covering:
-- DAO initialization and configuration
-- Enhanced member registration with ENS
-- Privacy features and confidential operations  
-- Restaking and yield generation
-- Document storage and management
-- Treasury governance and voting
-- Error conditions and edge cases
-
-Run tests with:
 ```bash
-npx hardhat test
+stellar contract deploy \
+  --wasm target/wasm32v1-none/release/ourdao_dao.optimized.wasm \
+  --network testnet \
+  --source <your-identity>
 ```
 
-**Test Results**: ✅ 44 passing core tests with all UnifiedLendingDAO functionality verified.
-
-## Deployment
-
-Deploy using Hardhat Ignition:
-```bash
-npx hardhat ignition deploy ignition/modules/LendingDAO.ts --network <network>
-```
+Then initialize with your admin set, consensus threshold (bps), membership fee, DAO token address, and loan policy.
 
 ## License
 
-MIT License - see LICENSE file for details.
-
-## Security Considerations
-
-⚠️ **Important**: This contract is for educational/demonstration purposes. Before using in production:
-
-1. Conduct thorough security audits
-2. Test extensively on testnets
-3. Consider additional security measures
-4. Review all parameters and thresholds
-5. Implement proper governance procedures
-
-## Support
-
-For questions or issues, please open a GitHub issue or contact the development team.
+MIT
