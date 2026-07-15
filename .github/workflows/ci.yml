@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  # soroban-sdk requires the wasm32v1-none target (Rust 1.84+).
+  WASM_TARGET: wasm32v1-none
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+          targets: wasm32v1-none
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      # --locked keeps the committed Cargo.lock (which pins ed25519-dalek to
+      # 2.2.0) authoritative, so the resolver can't float onto an incompatible
+      # transitive release.
+      - name: Test
+        run: cargo test --locked
+
+      - name: Build wasm (release)
+        run: cargo build --locked --target ${{ env.WASM_TARGET }} --release
