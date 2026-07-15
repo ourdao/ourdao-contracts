@@ -1,5 +1,7 @@
 # OurDAO — Stellar Soroban Lending DAO
 
+[![CI](https://github.com/ourdao/ourdao-contracts/actions/workflows/ci.yml/badge.svg)](https://github.com/ourdao/ourdao-contracts/actions/workflows/ci.yml)
+
 A member-owned lending DAO implemented as a [Soroban](https://developers.stellar.org/docs/build/smart-contracts) smart contract in Rust.
 
 This is a ground-up reimplementation of the original EVM `UnifiedLendingDAO` (Solidity) for the Stellar network. It is **not** a line-by-line translation — the execution model, storage, authorization, and value transfer are all Soroban-native. All DAO value flows through a single configurable token set at initialization (USDC, XLM via the Stellar Asset Contract, or any Stellar asset).
