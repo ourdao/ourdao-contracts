@@ -66,16 +66,36 @@ stellar contract build --optimize
 > `soroban-env-host` and breaks the test build if allowed to float. The lockfile is
 > committed to keep builds reproducible.
 
-## Deploy (example)
+## Deploy to testnet
+
+The quickest path is the helper script, which creates and funds a deployer
+identity (via friendbot), builds the optimized wasm, deploys, and prints the
+contract id plus a ready-to-edit `initialize` command:
+
+```bash
+./scripts/deploy-testnet.sh
+```
+
+Override the defaults with environment variables if needed:
+
+```bash
+IDENTITY=my-key NETWORK=testnet ALIAS=ourdao-dao ./scripts/deploy-testnet.sh
+```
+
+Or deploy manually:
 
 ```bash
 stellar contract deploy \
   --wasm target/wasm32v1-none/release/ourdao_dao.optimized.wasm \
   --network testnet \
-  --source <your-identity>
+  --source <your-identity> \
+  --alias ourdao-dao
 ```
 
-Then initialize with your admin set, consensus threshold (bps), membership fee, DAO token address, and loan policy.
+After deploying, initialize the DAO with your admin set, consensus threshold
+(bps), membership fee, DAO token contract id, and loan policy. The script
+prints a filled-in example; the token id can be the testnet USDC contract or
+the native XLM Stellar Asset Contract (`stellar contract id asset --asset native --network testnet`).
 
 ## License
 
