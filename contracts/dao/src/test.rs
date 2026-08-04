@@ -261,6 +261,31 @@ fn defaulted_loan_is_terminal() {
 }
 
 #[test]
+fn defaulted_borrower_can_exit() {
+    let s = setup(3);
+    let borrower = s.members.get(0).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let v2 = s.members.get(2).unwrap();
+
+    let pid = s.client.request_loan(&borrower, &500);
+    advance(&s.env, EDITING + 1);
+    s.client.vote_on_loan_proposal(&v1, &pid, &true);
+    s.client.vote_on_loan_proposal(&v2, &pid, &true);
+    advance(&s.env, LOAN_DURATION + 1);
+
+    // Before default, has_active_loan blocks exit.
+    let blocked = s.client.try_exit_dao(&borrower);
+    assert_eq!(blocked, Err(Ok(Error::HasActiveLoan)));
+
+    s.client.mark_loan_defaulted(&0);
+
+    // After default, has_active_loan is cleared and exit succeeds (with the
+    // already-slashed, reduced share).
+    s.client.exit_dao(&borrower);
+    assert!(!s.client.is_member(&borrower));
+}
+
+#[test]
 fn treasury_withdrawal_open_vote() {
     let s = setup(3);
     let proposer = s.members.get(0).unwrap();
