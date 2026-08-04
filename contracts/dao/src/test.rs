@@ -238,6 +238,29 @@ fn loan_default_applies_penalty_and_frees_borrower() {
 }
 
 #[test]
+fn defaulted_loan_is_terminal() {
+    let s = setup(3);
+    let borrower = s.members.get(0).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let v2 = s.members.get(2).unwrap();
+
+    let pid = s.client.request_loan(&borrower, &500);
+    advance(&s.env, EDITING + 1);
+    s.client.vote_on_loan_proposal(&v1, &pid, &true);
+    s.client.vote_on_loan_proposal(&v2, &pid, &true);
+    advance(&s.env, LOAN_DURATION + 1);
+    s.client.mark_loan_defaulted(&0);
+
+    // Can't default it twice.
+    let again = s.client.try_mark_loan_defaulted(&0);
+    assert_eq!(again, Err(Ok(Error::LoanNotActive)));
+
+    // Can't repay a defaulted loan.
+    let repay = s.client.try_repay_loan(&borrower, &0);
+    assert_eq!(repay, Err(Ok(Error::LoanNotActive)));
+}
+
+#[test]
 fn treasury_withdrawal_open_vote() {
     let s = setup(3);
     let proposer = s.members.get(0).unwrap();
