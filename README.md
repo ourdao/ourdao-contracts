@@ -10,7 +10,7 @@ This is a ground-up reimplementation of the original EVM `UnifiedLendingDAO` (So
 
 - **Governance** — a set of admins, a basis-points consensus threshold (default 51%), and tunable loan policy.
 - **Membership** — anyone can join by paying a membership fee in the DAO token; the fee becomes their share in the treasury. Members can exit and withdraw their pro-rata share.
-- **Lending** — members request loans that go through an editable draft phase, then member voting; on approval the principal is disbursed from the treasury. Repayment returns principal to the treasury and distributes interest to members as claimable yield.
+- **Lending** — members request loans that go through an editable draft phase, then member voting; on approval the principal is disbursed from the treasury. Repayment returns principal to the treasury and distributes interest to members as claimable yield. An overdue loan (past `due_time` plus a configurable grace period) can be permissionlessly marked defaulted, slashing a share of the borrower's treasury claim.
 - **Treasury** — members propose withdrawals to any destination; execution requires a higher (60%) consensus.
 - **Safety** — admin pause/unpause and extensive view functions.
 
@@ -96,6 +96,12 @@ After deploying, initialize the DAO with your admin set, consensus threshold
 (bps), membership fee, DAO token contract id, and loan policy. The script
 prints a filled-in example; the token id can be the testnet USDC contract or
 the native XLM Stellar Asset Contract (`stellar contract id asset --asset native --network testnet`).
+
+## Known limitations
+
+- **Interest distribution is O(n) over every member ever joined**, not just active ones, on every `repay_loan` call. Fine at prototype scale; will hit Soroban resource limits as membership grows.
+- **No upgrade path.** The contract is immutable once deployed — a deliberate trust-minimization tradeoff, not an oversight.
+- **Testnet-only deploy tooling**, consistent with this project's current testnet-stage positioning.
 
 ## License
 
