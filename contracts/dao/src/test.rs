@@ -29,6 +29,8 @@ fn policy() -> LoanPolicy {
         max_interest_rate: 2_000, // 20%
         cooldown_period: 0,
         max_loan_to_treasury_ratio: 5_000, // 50%
+        default_grace_period: 0,
+        default_penalty_bps: 2_000, // 20%
     }
 }
 
@@ -184,6 +186,27 @@ fn loan_exceeds_treasury_ratio() {
     let borrower = s.members.get(0).unwrap();
     let res = s.client.try_request_loan(&borrower, &2_000);
     assert_eq!(res, Err(Ok(Error::ExceedsTreasuryRatio)));
+}
+
+#[test]
+fn loan_default_before_due_rejected() {
+    let s = setup(3);
+    let borrower = s.members.get(0).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let v2 = s.members.get(2).unwrap();
+
+    let pid = s.client.request_loan(&borrower, &500);
+    advance(&s.env, EDITING + 1);
+    s.client.vote_on_loan_proposal(&v1, &pid, &true);
+    s.client.vote_on_loan_proposal(&v2, &pid, &true);
+
+    // Loan is Active and not yet overdue.
+    let res = s.client.try_mark_loan_defaulted(&0);
+    assert_eq!(res, Err(Ok(Error::LoanNotOverdue)));
+
+    // A loan that doesn't exist can't be defaulted either.
+    let missing = s.client.try_mark_loan_defaulted(&99);
+    assert_eq!(missing, Err(Ok(Error::LoanNotFound)));
 }
 
 #[test]
