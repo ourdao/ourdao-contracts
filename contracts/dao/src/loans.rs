@@ -272,6 +272,51 @@ pub fn repay_loan(env: &Env, borrower: Address, loan_id: u32) -> Result<(), Erro
     Ok(())
 }
 
+/// Marks an overdue loan as defaulted. Permissionless and callable by anyone
+/// once `due_time + policy.default_grace_period` has passed — this is an
+/// objective, time-based state transition (a keeper call), not an admin
+/// action, so there's nothing to authorize.
+///
+/// Consequence: the borrower's `contribution` (their pro-rata claim on the
+/// treasury via `calculate_exit_share`) is slashed by `default_penalty_bps`,
+/// and `has_active_loan` is cleared. Clearing the flag is deliberate: it lets
+/// a defaulted borrower still exit the DAO with their reduced share rather
+/// than being trapped (exit is blocked while `has_active_loan` is true), and
+/// lets them request a new loan again after the normal cooldown. Like
+/// `Repaid`, `Defaulted` is terminal — a defaulted loan can't later be repaid.
+pub fn mark_loan_defaulted(env: &Env, loan_id: u32) -> Result<(), Error> {
+    util::require_initialized(env)?;
+    let mut loan = storage::get_loan(env, loan_id).ok_or(Error::LoanNotFound)?;
+    if loan.status != LoanStatus::Active {
+        return Err(Error::LoanNotActive);
+    }
+
+    let policy = storage::get_policy(env);
+    let now = env.ledger().timestamp();
+    if now < loan.due_time + policy.default_grace_period {
+        return Err(Error::LoanNotOverdue);
+    }
+
+    loan.status = LoanStatus::Defaulted;
+    storage::set_loan(env, &loan);
+
+    let mut penalty: i128 = 0;
+    if let Some(mut member) = storage::get_member(env, &loan.borrower) {
+        penalty = (member.contribution * policy.default_penalty_bps as i128 / BASIS_POINTS)
+            .min(member.contribution);
+        member.contribution -= penalty;
+        member.has_active_loan = false;
+        storage::set_member(env, &member);
+    }
+    storage::extend_instance(env);
+
+    env.events().publish(
+        (symbol_short!("loan_dflt"),),
+        (loan_id, loan.borrower.clone(), penalty),
+    );
+    Ok(())
+}
+
 /// Splits repaid interest equally across active members as claimable yield.
 /// Any indivisible remainder is retained by the treasury.
 fn distribute_interest(env: &Env, interest: i128) {

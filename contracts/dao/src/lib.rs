@@ -131,6 +131,11 @@ impl OurDao {
         loans::repay_loan(&env, borrower, loan_id)
     }
 
+    /// Marks an overdue loan as defaulted. Permissionless — see `loans::mark_loan_defaulted`.
+    pub fn mark_loan_defaulted(env: Env, loan_id: u32) -> Result<(), Error> {
+        loans::mark_loan_defaulted(&env, loan_id)
+    }
+
     // ==================== treasury ====================
 
     pub fn propose_treasury_withdrawal(
