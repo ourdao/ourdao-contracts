@@ -65,7 +65,7 @@ cat <<EOF
       --consensus_threshold 5100 \\
       --membership_fee 10000000 \\
       --token <TOKEN_CONTRACT_ID> \\
-      --policy '{ "min_membership_duration": 0, "membership_contribution": 10000000, "max_loan_duration": 2592000, "min_interest_rate": 500, "max_interest_rate": 2000, "cooldown_period": 0, "max_loan_to_treasury_ratio": 5000 }'
+      --policy '{ "min_membership_duration": 0, "membership_contribution": 10000000, "max_loan_duration": 2592000, "min_interest_rate": 500, "max_interest_rate": 2000, "cooldown_period": 0, "max_loan_to_treasury_ratio": 5000, "default_grace_period": 259200, "default_penalty_bps": 2000 }'
 
 Where <TOKEN_CONTRACT_ID> is the asset all DAO value flows through — e.g. the
 testnet USDC contract, or the native XLM Stellar Asset Contract id from:
