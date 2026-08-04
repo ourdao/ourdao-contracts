@@ -12,6 +12,7 @@ fn validate_policy(policy: &LoanPolicy) -> Result<(), Error> {
         || policy.max_interest_rate as i128 > BASIS_POINTS
         || policy.min_interest_rate > policy.max_interest_rate
         || policy.max_loan_to_treasury_ratio as i128 > BASIS_POINTS
+        || policy.default_penalty_bps as i128 > BASIS_POINTS
     {
         return Err(Error::InvalidLoanPolicy);
     }

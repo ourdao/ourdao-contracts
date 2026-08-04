@@ -40,6 +40,7 @@ pub enum Error {
     LoanNotActive = 39,
     ExceedsTreasuryRatio = 40,
     InsufficientTreasury = 41,
+    LoanNotOverdue = 42,
 
     // ---- treasury ----
     TreasuryProposalNotFound = 50,
