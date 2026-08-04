@@ -11,6 +11,7 @@ use crate::{Error, OurDao, OurDaoClient};
 const FEE: i128 = 1_000;
 const MINT: i128 = 1_000_000;
 const EDITING: u64 = 3 * 24 * 60 * 60;
+const LOAN_DURATION: u64 = 30 * 24 * 60 * 60;
 
 struct Setup<'a> {
     env: Env,
@@ -207,6 +208,33 @@ fn loan_default_before_due_rejected() {
     // A loan that doesn't exist can't be defaulted either.
     let missing = s.client.try_mark_loan_defaulted(&99);
     assert_eq!(missing, Err(Ok(Error::LoanNotFound)));
+}
+
+#[test]
+fn loan_default_applies_penalty_and_frees_borrower() {
+    let s = setup(3);
+    let borrower = s.members.get(0).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let v2 = s.members.get(2).unwrap();
+
+    let pid = s.client.request_loan(&borrower, &500);
+    advance(&s.env, EDITING + 1);
+    s.client.vote_on_loan_proposal(&v1, &pid, &true);
+    s.client.vote_on_loan_proposal(&v2, &pid, &true);
+    assert!(s.client.get_member(&borrower).unwrap().has_active_loan);
+
+    advance(&s.env, LOAN_DURATION + 1); // past due_time, grace period is 0
+
+    let contribution_before = s.client.get_member(&borrower).unwrap().contribution;
+    s.client.mark_loan_defaulted(&0);
+
+    let loan = s.client.get_loan(&0).unwrap();
+    assert_eq!(loan.status, LoanStatus::Defaulted);
+
+    let member = s.client.get_member(&borrower).unwrap();
+    assert!(!member.has_active_loan);
+    let expected_penalty = contribution_before * 2_000 / 10_000; // 20% per policy()
+    assert_eq!(member.contribution, contribution_before - expected_penalty);
 }
 
 #[test]
