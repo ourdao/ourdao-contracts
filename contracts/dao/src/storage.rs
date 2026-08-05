@@ -31,7 +31,6 @@ pub enum DataKey {
     TotalMembers,
     ActiveMembers,
     NextProposalId,
-    NextLoanId,
     NextTreasuryId,
     TotalStaked,
 

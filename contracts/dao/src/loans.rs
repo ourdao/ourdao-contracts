@@ -206,7 +206,12 @@ fn approve_and_disburse(env: &Env, proposal: &LoanProposal) -> Result<(), Error>
         return Err(Error::InsufficientTreasury);
     }
     let now = env.ledger().timestamp();
-    let id = storage::next_id(env, storage::DataKey::NextLoanId);
+    // Reuse the proposal's own id rather than a separate counter: a proposal
+    // produces at most one loan, so this keeps loan_id == proposal_id as an
+    // invariant instead of two sequences that silently diverge the moment
+    // any proposal is rejected or expires without disbursing (the off-chain
+    // indexer has no other way to correlate a loan back to its proposal).
+    let id = proposal.id;
     let loan = Loan {
         id,
         borrower: proposal.borrower.clone(),
