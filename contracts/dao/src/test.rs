@@ -286,6 +286,37 @@ fn defaulted_borrower_can_exit() {
 }
 
 #[test]
+fn loan_id_matches_its_originating_proposal_id() {
+    let s = setup(3);
+    let borrower = s.members.get(0).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let v2 = s.members.get(2).unwrap();
+
+    // First proposal (id 0) never reaches approval — consumes a proposal id
+    // without ever producing a loan, so a separate loan-id counter would lag
+    // behind the proposal-id counter from here on.
+    let pid0 = s.client.request_loan(&borrower, &200);
+    advance(&s.env, EDITING + 1);
+    s.client.vote_on_loan_proposal(&v1, &pid0, &false);
+    assert_eq!(
+        s.client.get_loan_proposal(&pid0).unwrap().status,
+        ProposalStatus::Pending
+    );
+
+    // Second proposal (id 1) is approved. Its loan must carry id 1 too, not
+    // whatever a separate counter would have handed out (0).
+    let pid1 = s.client.request_loan(&borrower, &300);
+    advance(&s.env, EDITING + 1);
+    s.client.vote_on_loan_proposal(&v1, &pid1, &true);
+    s.client.vote_on_loan_proposal(&v2, &pid1, &true);
+
+    assert_eq!(pid1, 1);
+    let loan = s.client.get_loan(&pid1).unwrap();
+    assert_eq!(loan.id, pid1);
+    assert_eq!(loan.borrower, borrower);
+}
+
+#[test]
 fn treasury_withdrawal_open_vote() {
     let s = setup(3);
     let proposer = s.members.get(0).unwrap();
