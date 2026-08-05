@@ -4,15 +4,14 @@
 #![allow(deprecated)]
 //! OurDAO — a member-owned lending DAO for Stellar Soroban.
 //!
-//! Ported from the original EVM `UnifiedLendingDAO` (Solidity). All value moves
-//! through a single configurable token set at initialization (USDC, XLM via the
-//! Stellar Asset Contract, or any Stellar asset). The four EVM-ecosystem
-//! extensions are replaced with Stellar-native equivalents:
+//! All value moves through a single configurable token set at initialization
+//! (USDC, XLM via the Stellar Asset Contract, or any Stellar asset). Four
+//! additional Soroban-native modules extend the core lending/treasury flow:
 //!
-//! * ENS governance  -> [`registry`] name registry
-//! * Filecoin storage -> [`docs`] content-hash proposal metadata
-//! * FHE encrypted votes -> [`privacy`] commit-reveal voting
-//! * Symbiotic restaking -> [`staking`] voting-weight staking
+//! * [`registry`] name registry
+//! * [`docs`] content-hash proposal metadata
+//! * [`privacy`] commit-reveal voting
+//! * [`staking`] voting-weight staking
 
 mod admin;
 mod docs;

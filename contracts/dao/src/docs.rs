@@ -1,7 +1,6 @@
-//! Content-hash proposal metadata — the Stellar-native stand-in for the EVM
-//! contract's Filecoin storage integration. Soroban has no decentralized blob
-//! store, so instead of storing documents on-chain we anchor a content hash
-//! (e.g. an IPFS CID or SHA-256 digest) against a proposal. The bytes live
+//! Content-hash proposal metadata. Soroban has no decentralized blob store,
+//! so instead of storing documents on-chain we anchor a content hash (e.g.
+//! an IPFS CID or SHA-256 digest) against a proposal. The bytes live
 //! off-chain; the chain proves which document a proposal referred to.
 
 use soroban_sdk::{symbol_short, Address, Bytes, Env};

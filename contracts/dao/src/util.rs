@@ -70,8 +70,8 @@ pub fn voting_weight(env: &Env, who: &Address) -> i128 {
     1 + bonus
 }
 
-/// Ceil-division consensus bar over the active-member base, in basis points.
-/// Mirrors the EVM contract's `(base * threshold + BP - 1) / BP`.
+/// Ceil-division consensus bar over the active-member base, in basis points:
+/// `(base * threshold + BP - 1) / BP`.
 pub fn required_votes(active_members: u32, threshold_bps: u32) -> i128 {
     let base = active_members as i128;
     let bp = crate::types::BASIS_POINTS;

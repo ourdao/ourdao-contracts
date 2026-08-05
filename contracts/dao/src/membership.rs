@@ -95,7 +95,7 @@ pub fn claim_rewards(env: &Env, member: Address) -> Result<i128, Error> {
 }
 
 /// Pro-rata slice of the treasury a member would receive on exit, weighted by
-/// their contribution against total contributions. Matches the EVM formula
+/// their contribution against total contributions:
 /// `treasury * contribution / (membershipFee * totalMembers)`.
 pub fn calculate_exit_share(env: &Env, member: &Address) -> i128 {
     let record = match storage::get_member(env, member) {

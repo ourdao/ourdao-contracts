@@ -1,8 +1,7 @@
-//! Staking module — the Stellar-native stand-in for the EVM contract's
-//! Symbiotic restaking integration. Members lock tokens to signal commitment
-//! and gain a capped boost to their voting weight (see `util::voting_weight`).
-//! Staked funds are tracked separately from the treasury and are never lent
-//! out or distributed as yield.
+//! Staking module. Members lock tokens to signal commitment and gain a
+//! capped boost to their voting weight (see `util::voting_weight`). Staked
+//! funds are tracked separately from the treasury and are never lent out or
+//! distributed as yield.
 
 use soroban_sdk::{symbol_short, Address, Env};
 

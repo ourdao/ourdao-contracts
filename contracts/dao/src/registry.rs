@@ -1,5 +1,4 @@
-//! Name registry — the Stellar-native stand-in for the EVM contract's ENS
-//! governance hooks. Maps human-readable names to addresses (and back), so
+//! Name registry. Maps human-readable names to addresses (and back), so
 //! members and the DAO itself can be referenced by name on-chain.
 
 use soroban_sdk::{symbol_short, Address, Env, String};

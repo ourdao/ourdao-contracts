@@ -1,6 +1,6 @@
 use soroban_sdk::{contracttype, Address, String};
 
-/// Basis-points denominator (100% == 10_000). Mirrors the original EVM contract.
+/// Basis-points denominator (100% == 10_000).
 pub const BASIS_POINTS: i128 = 10_000;
 /// Treasury withdrawals use a fixed, higher bar: 60%.
 pub const TREASURY_THRESHOLD: u32 = 6_000;

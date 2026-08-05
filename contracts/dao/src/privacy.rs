@@ -1,9 +1,8 @@
-//! Commit-reveal voting — the Stellar-native stand-in for the EVM contract's
-//! FHE (encrypted-vote) integration. On-chain FHE isn't available on Soroban,
-//! so privacy is achieved with a two-phase scheme: members first submit a hash
-//! of `(support, salt)`, hiding their choice while voting is open, then reveal
-//! it later. The tally only runs on reveal, so no one sees the running result
-//! influence how others vote.
+//! Commit-reveal voting for private treasury proposals. On-chain encrypted
+//! voting isn't available on Soroban, so privacy is achieved with a two-phase
+//! scheme: members first submit a hash of `(support, salt)`, hiding their
+//! choice while voting is open, then reveal it later. The tally only runs on
+//! reveal, so no one sees the running result influence how others vote.
 //!
 //! Applies to treasury proposals created with `private = true`.
 

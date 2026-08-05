@@ -5,7 +5,7 @@
 
 A member-owned lending DAO implemented as a single [Soroban](https://developers.stellar.org/docs/build/smart-contracts) smart contract in Rust — 2,300+ lines across 13 focused modules, 19 unit tests, CI-gated on every push.
 
-This is a ground-up reimplementation of an earlier EVM `UnifiedLendingDAO` (Solidity) for the Stellar network. It is **not** a line-by-line translation — the execution model, storage layout, authorization, and value transfer are all Soroban-native. All DAO value flows through a single configurable token set at initialization (USDC, XLM via the Stellar Asset Contract, or any Stellar asset).
+The execution model, storage layout, authorization, and value transfer are all Soroban-native. All DAO value flows through a single configurable token set at initialization (USDC, XLM via the Stellar Asset Contract, or any Stellar asset).
 
 This repository is one of three that make up OurDAO:
 
@@ -18,7 +18,7 @@ This repository is one of three that make up OurDAO:
 ## Table of contents
 
 - [What the DAO does](#what-the-dao-does)
-- [Stellar-native replacements for the EVM extensions](#stellar-native-replacements-for-the-evm-extensions)
+- [Additional feature modules](#additional-feature-modules)
 - [Architecture & design decisions](#architecture--design-decisions)
 - [Layout](#layout)
 - [Public interface (ABI)](#public-interface-abi)
@@ -40,16 +40,16 @@ This repository is one of three that make up OurDAO:
 - **Treasury** — any member can propose a withdrawal to any destination; execution requires a higher (60%) consensus than loan approval, reflecting the larger blast radius of moving treasury funds arbitrarily.
 - **Safety** — admin pause/unpause blocks all state-changing operations instantly, and extensive view functions let any client inspect full DAO state without needing an indexer for real-time reads.
 
-## Stellar-native replacements for the EVM extensions
+## Additional feature modules
 
-The original EVM contract carried four Ethereum-ecosystem integrations with no Soroban equivalent. Each is replaced by a real, working Stellar-native feature — not stubbed out:
+Four Soroban-native features beyond the core lending/treasury flow, each fully implemented — not stubbed out:
 
-| Original EVM extension | Soroban-native replacement | Module |
+| Feature | Description | Module |
 |---|---|---|
-| ENS governance (naming) | On-chain **name registry** (name ⇄ address, 1:1) | `registry.rs` |
-| Filecoin storage | **Content-hash metadata** — anchor an IPFS CID / digest to a loan or treasury proposal | `docs.rs` |
-| FHE encrypted voting | **Commit-reveal voting** for private treasury proposals (`sha256(support ++ salt)`, revealed later, tallied through the same code path as public votes) | `privacy.rs` |
-| Symbiotic restaking | **Staking** for a capped voting-weight boost (1 base vote + up to 5 bonus, 100 token units per bonus vote), tracked separately so staked funds are never lent out or counted as treasury | `staking.rs` |
+| Name registry | On-chain **name registry** (name ⇄ address, 1:1) | `registry.rs` |
+| Content-hash metadata | Anchor an IPFS CID / digest to a loan or treasury proposal | `docs.rs` |
+| Commit-reveal voting | **Commit-reveal voting** for private treasury proposals (`sha256(support ++ salt)`, revealed later, tallied through the same code path as public votes) | `privacy.rs` |
+| Staking | **Staking** for a capped voting-weight boost (1 base vote + up to 5 bonus, 100 token units per bonus vote), tracked separately so staked funds are never lent out or counted as treasury | `staking.rs` |
 
 ## Architecture & design decisions
 
@@ -70,10 +70,10 @@ contracts/dao/
     membership.rs  # join, exit, claim yield, exit-share math
     loans.rs       # request -> edit -> vote -> disburse -> repay -> default -> interest
     treasury.rs    # propose -> vote -> execute (shared tally)
-    registry.rs    # name registry (ENS analog)
-    docs.rs        # content-hash proposal metadata (Filecoin analog)
-    privacy.rs     # commit-reveal voting (FHE analog)
-    staking.rs     # voting-weight staking (Symbiotic analog)
+    registry.rs    # name registry
+    docs.rs        # content-hash proposal metadata
+    privacy.rs     # commit-reveal voting
+    staking.rs     # voting-weight staking
     storage.rs     # typed storage keys + TTL management
     types.rs       # data model + constants
     error.rs       # contract error codes
@@ -252,7 +252,7 @@ the native XLM Stellar Asset Contract (`stellar contract id asset --asset native
 
 ## Security notes
 
-- **No reentrancy surface.** Soroban's execution model doesn't have Ethereum-style reentrancy (no arbitrary external calls back into the contract mid-execution from an untrusted token), but all balance-changing operations still follow check-effects-interactions ordering (state updated before/alongside the token transfer, not after).
+- **No reentrancy surface.** Soroban's execution model has no arbitrary external calls back into the contract mid-execution from an untrusted token, but all balance-changing operations still follow check-effects-interactions ordering (state updated before/alongside the token transfer, not after).
 - **Auth is enforced per-call, not assumed.** Every state-changing entrypoint that moves a specific member's funds or represents their vote calls `require_auth()` on that member's own address — a caller cannot act on behalf of another address.
 - **`mark_loan_defaulted` is intentionally unauthenticated.** This is a deliberate design choice, not an oversight: the action is purely a function of on-chain time and existing loan state, so there is nothing to authorize — restricting it to admins would just add unnecessary liveness risk (an admin going offline shouldn't block defaults from being recorded).
 - **This contract has not been externally audited.** It is a testnet-stage prototype. Do not deploy to mainnet with real value without an independent security review first.
