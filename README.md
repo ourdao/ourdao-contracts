@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="OurDAO logo" width="96" />
+</p>
+
 # OurDAO — Stellar Soroban Lending DAO
 
 [![CI](https://github.com/ourdao/ourdao-contracts/actions/workflows/ci.yml/badge.svg)](https://github.com/ourdao/ourdao-contracts/actions/workflows/ci.yml)
