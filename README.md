@@ -33,6 +33,7 @@ This repository is one of three that make up OurDAO:
 - [Security notes](#security-notes)
 - [Known limitations](#known-limitations)
 - [Roadmap](#roadmap)
+- [Contributing](#contributing)
 - [License](#license)
 
 ## What the DAO does
@@ -275,6 +276,12 @@ the native XLM Stellar Asset Contract (`stellar contract id asset --asset native
 - Resolve the O(n) interest-distribution scaling limitation.
 - A documented upgrade/migration path.
 - Deeper integration testing against `ourdao-backend`'s indexer (event schema drift detection).
+
+## Contributing
+
+Contributions are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) for local setup, the checks CI enforces, and the contract-specific rules (append-only error codes, events on every state change, TTL discipline). Please claim an issue before opening a pull request.
+
+Found a security vulnerability? Don't open a public issue — use GitHub's private vulnerability reporting on this repo.
 
 ## License
 
