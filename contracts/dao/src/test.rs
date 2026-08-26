@@ -5,7 +5,9 @@ use soroban_sdk::{token, Address, Bytes, BytesN, Env, String, Vec};
 
 use crate::privacy::compute_commitment;
 use crate::storage::ProposalKind;
-use crate::types::{LoanPolicy, LoanStatus, MemberStatus, ProposalStatus};
+use crate::types::{
+    LoanPolicy, LoanStatus, MemberStatus, ProposalPhase, ProposalStatus, VOTING_PERIOD,
+};
 use crate::{Error, OurDao, OurDaoClient};
 
 const FEE: i128 = 1_000;
@@ -368,7 +370,7 @@ fn staking_boosts_voting_weight() {
 fn name_registry() {
     let s = setup(1);
     let owner = s.members.get(0).unwrap();
-    let name = String::from_str(&s.env, "alice.dao");
+    let name = String::from_str(&s.env, "alice_dao");
     s.client.register_name(&owner, &name);
     assert_eq!(s.client.resolve_name(&name), Some(owner.clone()));
     assert_eq!(s.client.name_of(&owner), Some(name.clone()));
@@ -463,4 +465,205 @@ fn cannot_remove_last_admin() {
     let s = setup(0);
     let res = s.client.try_remove_admin(&s.admin, &s.admin);
     assert_eq!(res, Err(Ok(Error::CannotRemoveLastAdmin)));
+}
+
+// ==================== issue #1: expire_loan_proposal ====================
+
+#[test]
+fn expired_proposal_shows_expired_phase_in_view() {
+    let s = setup(3);
+    let borrower = s.members.get(0).unwrap();
+    let pid = s.client.request_loan(&borrower, &500);
+
+    // Before voting window expires, view returns the live phase.
+    let prop = s.client.get_loan_proposal(&pid).unwrap();
+    assert_eq!(prop.phase, ProposalPhase::Editing);
+
+    advance(&s.env, EDITING + 1);
+    let prop = s.client.get_loan_proposal(&pid).unwrap();
+    assert_eq!(prop.phase, ProposalPhase::Voting);
+
+    // After voting window passes without reaching quorum, view auto-expires.
+    advance(&s.env, VOTING_PERIOD + 1);
+    let prop = s.client.get_loan_proposal(&pid).unwrap();
+    assert_eq!(prop.phase, ProposalPhase::Expired);
+    assert_eq!(prop.status, ProposalStatus::Rejected);
+}
+
+#[test]
+fn expire_before_deadline_rejected() {
+    let s = setup(3);
+    let borrower = s.members.get(0).unwrap();
+    let pid = s.client.request_loan(&borrower, &500);
+
+    // Proposal is still in editing phase — not expired yet.
+    let res = s.client.try_expire_loan_proposal(&pid);
+    assert_eq!(res, Err(Ok(Error::ProposalNotExpired)));
+}
+
+#[test]
+fn double_expire_is_noop() {
+    let s = setup(3);
+    let borrower = s.members.get(0).unwrap();
+    let pid = s.client.request_loan(&borrower, &500);
+
+    advance(&s.env, EDITING + VOTING_PERIOD + 2);
+
+    // First call persists the expired state.
+    s.client.expire_loan_proposal(&pid);
+    let prop = s.client.get_loan_proposal(&pid).unwrap();
+    assert_eq!(prop.phase, ProposalPhase::Expired);
+
+    // Second call is a no-op (already persisted).
+    s.client.expire_loan_proposal(&pid);
+    let prop = s.client.get_loan_proposal(&pid).unwrap();
+    assert_eq!(prop.phase, ProposalPhase::Expired);
+}
+
+// ==================== issue #2: has_voted view ====================
+
+#[test]
+fn has_voted_loan_before_and_after() {
+    let s = setup(3);
+    let borrower = s.members.get(0).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let pid = s.client.request_loan(&borrower, &500);
+    advance(&s.env, EDITING + 1);
+
+    assert!(!s.client.has_voted(&ProposalKind::Loan, &pid, &v1));
+    s.client.vote_on_loan_proposal(&v1, &pid, &true);
+    assert!(s.client.has_voted(&ProposalKind::Loan, &pid, &v1));
+}
+
+#[test]
+fn has_voted_treasury_commit_reveal() {
+    let s = setup(3);
+    let proposer = s.members.get(0).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let dest = Address::generate(&s.env);
+    let reason = String::from_str(&s.env, "grant");
+
+    let pid = s
+        .client
+        .propose_treasury_withdrawal(&proposer, &100, &dest, &reason, &true);
+
+    // Before commit: not voted.
+    assert!(!s.client.has_voted(&ProposalKind::Treasury, &pid, &v1));
+
+    // After commit: voted (commitment counts as a vote for dedup).
+    let salt = BytesN::from_array(&s.env, &[1u8; 32]);
+    let commitment = compute_commitment(&s.env, true, &salt);
+    s.client.commit_treasury_vote(&v1, &pid, &commitment);
+    assert!(s.client.has_voted(&ProposalKind::Treasury, &pid, &v1));
+}
+
+// ==================== issue #3: name validation ====================
+
+#[test]
+fn name_too_short_rejected() {
+    let s = setup(1);
+    let owner = s.members.get(0).unwrap();
+    let name = String::from_str(&s.env, "ab");
+    let res = s.client.try_register_name(&owner, &name);
+    assert_eq!(res, Err(Ok(Error::InvalidName)));
+}
+
+#[test]
+fn name_too_long_rejected() {
+    let s = setup(1);
+    let owner = s.members.get(0).unwrap();
+    // 33 characters.
+    let name = String::from_str(&s.env, "abcdefghijklmnopqrstuvwxyz1234567");
+    let res = s.client.try_register_name(&owner, &name);
+    assert_eq!(res, Err(Ok(Error::InvalidName)));
+}
+
+#[test]
+fn name_uppercase_rejected() {
+    let s = setup(1);
+    let owner = s.members.get(0).unwrap();
+    let name = String::from_str(&s.env, "Alice_dao");
+    let res = s.client.try_register_name(&owner, &name);
+    assert_eq!(res, Err(Ok(Error::InvalidName)));
+}
+
+#[test]
+fn name_dot_or_space_rejected() {
+    let s = setup(1);
+    let owner = s.members.get(0).unwrap();
+
+    let dot = String::from_str(&s.env, "alice.dao");
+    let res = s.client.try_register_name(&owner, &dot);
+    assert_eq!(res, Err(Ok(Error::InvalidName)));
+
+    let space = String::from_str(&s.env, "alice dao");
+    let res = s.client.try_register_name(&owner, &space);
+    assert_eq!(res, Err(Ok(Error::InvalidName)));
+}
+
+#[test]
+fn name_leading_trailing_separator_rejected() {
+    let s = setup(1);
+    let owner = s.members.get(0).unwrap();
+
+    let lead = String::from_str(&s.env, "-alice");
+    let res = s.client.try_register_name(&owner, &lead);
+    assert_eq!(res, Err(Ok(Error::InvalidName)));
+
+    let trail = String::from_str(&s.env, "alice-");
+    let res = s.client.try_register_name(&owner, &trail);
+    assert_eq!(res, Err(Ok(Error::InvalidName)));
+
+    let lead2 = String::from_str(&s.env, "_alice");
+    let res = s.client.try_register_name(&owner, &lead2);
+    assert_eq!(res, Err(Ok(Error::InvalidName)));
+
+    let trail2 = String::from_str(&s.env, "alice_");
+    let res = s.client.try_register_name(&owner, &trail2);
+    assert_eq!(res, Err(Ok(Error::InvalidName)));
+}
+
+#[test]
+fn name_valid_with_digits_and_separators() {
+    let s = setup(1);
+    let owner = s.members.get(0).unwrap();
+    let name = String::from_str(&s.env, "alice-123_dao");
+    s.client.register_name(&owner, &name);
+    assert_eq!(s.client.resolve_name(&name), Some(owner.clone()));
+}
+
+// ==================== issue #4: yield accumulator ====================
+
+#[test]
+fn yield_accumulator_join_claim_exit_rejoin() {
+    let s = setup(3);
+    let borrower = s.members.get(0).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let v2 = s.members.get(2).unwrap();
+
+    // Get a loan approved and repaid so interest is distributed.
+    let pid = s.client.request_loan(&borrower, &1_000);
+    advance(&s.env, EDITING + 1);
+    s.client.vote_on_loan_proposal(&v1, &pid, &true);
+    s.client.vote_on_loan_proposal(&v2, &pid, &true);
+    s.client.repay_loan(&borrower, &0);
+
+    let loan = s.client.get_loan(&0).unwrap();
+    let interest = loan.total_repayment - loan.principal;
+    let per_member = interest / 3;
+
+    // Both non-borrower members can claim their share.
+    assert_eq!(s.client.get_pending_yield(&v1), per_member);
+    assert_eq!(s.client.get_pending_yield(&v2), per_member);
+    s.client.claim_rewards(&v1);
+    assert_eq!(s.client.get_pending_yield(&v1), 0);
+
+    // v1 exits — their snapshot is settled so they don't double-claim.
+    s.client.exit_dao(&v1);
+    assert_eq!(s.client.get_pending_yield(&v1), 0);
+
+    // v1 rejoins — snapshot is set to current accumulator, earning nothing
+    // from interest that accrued before they rejoined.
+    s.client.register_member(&v1);
+    assert_eq!(s.client.get_pending_yield(&v1), 0);
 }

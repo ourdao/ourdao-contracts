@@ -135,6 +135,12 @@ impl OurDao {
         loans::mark_loan_defaulted(&env, loan_id)
     }
 
+    /// Permissionless keeper call: persists the expired/rejected transition for
+    /// a loan proposal whose voting window has passed without reaching quorum.
+    pub fn expire_loan_proposal(env: Env, proposal_id: u32) -> Result<(), Error> {
+        loans::expire_loan_proposal(&env, proposal_id)
+    }
+
     // ==================== treasury ====================
 
     pub fn propose_treasury_withdrawal(
@@ -229,7 +235,7 @@ impl OurDao {
     }
 
     pub fn get_loan_proposal(env: Env, proposal_id: u32) -> Option<LoanProposal> {
-        storage::get_loan_proposal(&env, proposal_id)
+        storage::get_loan_proposal(&env, proposal_id).map(|p| loans::refresh_phase(&env, p))
     }
 
     pub fn get_treasury_proposal(env: Env, proposal_id: u32) -> Option<TreasuryProposal> {
@@ -288,7 +294,28 @@ impl OurDao {
     }
 
     pub fn get_pending_yield(env: Env, member: Address) -> i128 {
-        storage::get_pending_yield(&env, &member)
+        let acc = storage::get_yield_accumulator(&env);
+        let snap = storage::get_yield_snapshot(&env, &member);
+        (acc - snap).max(0)
+    }
+
+    /// Returns whether `voter` has cast a (possibly not-yet-revealed) vote
+    /// on the given proposal. For public (non-private) proposals this is a
+    /// simple check against the vote record. For commit-reveal treasury
+    /// proposals it checks whether the voter has committed (which is the
+    /// earliest point at which a double-vote is prevented).
+    pub fn has_voted(env: Env, kind: ProposalKind, proposal_id: u32, voter: Address) -> bool {
+        match kind {
+            ProposalKind::Loan => storage::has_loan_voted(&env, proposal_id, &voter),
+            ProposalKind::Treasury => {
+                // For private (commit-reveal) proposals, a commitment is
+                // sufficient to report "voted" — the double-vote guard is
+                // enforced at commit time, and the client needs to know the
+                // member can't vote again regardless of reveal status.
+                storage::has_treasury_voted(&env, proposal_id, &voter)
+                    || storage::get_commit(&env, proposal_id, &voter).is_some()
+            }
+        }
     }
 
     pub fn calculate_loan_terms(env: Env, amount: i128) -> LoanTerms {

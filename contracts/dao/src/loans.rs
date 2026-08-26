@@ -277,6 +277,35 @@ pub fn repay_loan(env: &Env, borrower: Address, loan_id: u32) -> Result<(), Erro
     Ok(())
 }
 
+/// Permissionless keeper call: persists the expired/rejected transition for a
+/// loan proposal whose voting window has passed without reaching quorum.
+/// Succeeds exactly once per proposal — subsequent calls are a no-op (no
+/// double event).
+pub fn expire_loan_proposal(env: &Env, proposal_id: u32) -> Result<(), Error> {
+    util::require_initialized(env)?;
+    let mut proposal =
+        storage::get_loan_proposal(env, proposal_id).ok_or(Error::ProposalNotFound)?;
+    proposal = refresh_phase(env, proposal);
+    if proposal.phase != ProposalPhase::Expired {
+        return Err(Error::ProposalNotExpired);
+    }
+    // Check if already persisted (no-op for repeat calls).
+    // Re-read from storage to compare: if already Expired, skip.
+    if let Some(original) = storage::get_loan_proposal(env, proposal_id) {
+        if original.phase == ProposalPhase::Expired {
+            return Ok(());
+        }
+    }
+    storage::set_loan_proposal(env, &proposal);
+    storage::extend_instance(env);
+
+    env.events().publish(
+        (symbol_short!("loan_exp"),),
+        (proposal_id, proposal.borrower),
+    );
+    Ok(())
+}
+
 /// Marks an overdue loan as defaulted. Permissionless and callable by anyone
 /// once `due_time + policy.default_grace_period` has passed — this is an
 /// objective, time-based state transition (a keeper call), not an admin
@@ -324,6 +353,12 @@ pub fn mark_loan_defaulted(env: &Env, loan_id: u32) -> Result<(), Error> {
 
 /// Splits repaid interest equally across active members as claimable yield.
 /// Any indivisible remainder is retained by the treasury.
+///
+/// Uses a pull-based accumulator: instead of iterating every member and
+/// bumping their `PendingYield` (O(n)), we increment a global
+/// `YieldAccumulator` by `interest / active_members`. Each member stores
+/// a snapshot of the accumulator at their last interaction (join, claim,
+/// or exit). Their pending yield is `(accumulator - snapshot) * 1`.
 fn distribute_interest(env: &Env, interest: i128) {
     let active = storage::get_active_members(env) as i128;
     if interest <= 0 || active == 0 {
@@ -333,15 +368,8 @@ fn distribute_interest(env: &Env, interest: i128) {
     if per_member == 0 {
         return;
     }
-    let members = storage::get_members(env);
-    for addr in members.iter() {
-        if let Some(m) = storage::get_member(env, &addr) {
-            if m.status == MemberStatus::ActiveMember {
-                let current = storage::get_pending_yield(env, &addr);
-                storage::set_pending_yield(env, &addr, current + per_member);
-            }
-        }
-    }
+    let current = storage::get_yield_accumulator(env);
+    storage::set_yield_accumulator(env, current + per_member);
     env.events()
         .publish((symbol_short!("interest"),), (interest, active));
 }

@@ -7,7 +7,7 @@
 [![CI](https://github.com/ourdao/ourdao-contracts/actions/workflows/ci.yml/badge.svg)](https://github.com/ourdao/ourdao-contracts/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-A member-owned lending DAO implemented as a single [Soroban](https://developers.stellar.org/docs/build/smart-contracts) smart contract in Rust — 2,300+ lines across 13 focused modules, 19 unit tests, CI-gated on every push.
+A member-owned lending DAO implemented as a single [Soroban](https://developers.stellar.org/docs/build/smart-contracts) smart contract in Rust — 2,300+ lines across 13 focused modules, 31 unit tests, CI-gated on every push.
 
 The execution model, storage layout, authorization, and value transfer are all Soroban-native. All DAO value flows through a single configurable token set at initialization (USDC, XLM via the Stellar Asset Contract, or any Stellar asset).
 
@@ -119,6 +119,7 @@ All entrypoints are on the `OurDao` contract (`lib.rs`). Errors are the numeric 
 | `vote_on_loan_proposal(voter, proposal_id, support)` | Auto-approves and disburses at the consensus threshold. |
 | `repay_loan(borrower, loan_id)` | Collects the full outstanding balance (no partial repayment). |
 | `mark_loan_defaulted(loan_id)` | **Permissionless.** Callable once `due_time + grace_period` has elapsed. |
+| `expire_loan_proposal(proposal_id)` | **Permissionless keeper call.** Persists the expired state for a proposal whose voting window has passed without reaching quorum. No-op on repeat calls. |
 
 **Treasury**
 
@@ -137,7 +138,7 @@ All entrypoints are on the `OurDao` contract (`lib.rs`). Errors are the numeric 
 
 | Method | Description |
 |---|---|
-| `register_name(owner, name)` | 1:1 name ⇄ address; re-registering frees the owner's previous name. |
+| `register_name(owner, name)` | 1:1 name ⇄ address; re-registering frees the owner's previous name. Names must be 3–32 chars, ASCII lowercase alphanumeric plus `-` and `_`, with no leading/trailing separator. |
 | `resolve_name(name) -> Option<Address>` / `name_of(owner) -> Option<String>` | Views. |
 
 **Commit-reveal voting**
@@ -154,7 +155,7 @@ All entrypoints are on the `OurDao` contract (`lib.rs`). Errors are the numeric 
 | `attach_document(caller, kind, proposal_id, content_hash)` | Anchors an off-chain content hash (e.g. IPFS CID) to a real loan/treasury proposal. |
 | `get_document(kind, proposal_id) -> Option<Bytes>` | View. |
 
-**Views** — `get_member`, `get_loan`, `get_loan_proposal`, `get_treasury_proposal`, `get_loan_policy`, `get_admins`, `is_admin`, `is_member`, `is_eligible_for_loan`, `get_treasury_balance`, `get_total_members`, `get_active_members`, `get_consensus_threshold`, `get_token`, `is_paused`, `get_stake`, `get_pending_yield`, `calculate_loan_terms`, `calculate_exit_share`.
+**Views** — `get_member`, `get_loan`, `get_loan_proposal` (auto-refreshes expired phase), `get_treasury_proposal`, `get_loan_policy`, `get_admins`, `is_admin`, `is_member`, `is_eligible_for_loan`, `get_treasury_balance`, `get_total_members`, `get_active_members`, `get_consensus_threshold`, `get_token`, `is_paused`, `get_stake`, `get_pending_yield`, `calculate_loan_terms`, `calculate_exit_share`, `has_voted(kind, proposal_id, voter)`.
 
 ## Event catalog
 
@@ -175,6 +176,7 @@ Every state-changing call publishes an event, which `ourdao-backend` indexes sin
 | `loan_appr` | `(id, borrower, amount)` | auto-fired on approval — `id` is both the loan's and its proposal's id |
 | `loan_rpy` | `(loan_id, borrower, outstanding)` | `repay_loan` |
 | `loan_dflt` | `(loan_id, borrower, penalty)` | `mark_loan_defaulted` |
+| `loan_exp` | `(proposal_id, borrower)` | `expire_loan_proposal` (permissionless keeper) |
 | `interest` | `(interest, active_members)` | fired alongside `loan_rpy` |
 | `tre_prop` | `(id, amount, destination, private)` | `propose_treasury_withdrawal` |
 | `tre_vote` | `(id, voter, support)` | `vote_on_treasury_proposal` |
@@ -197,6 +199,7 @@ Numeric codes are stable and part of the ABI — new variants get appended rathe
 | 30–42 | Loans: `ProposalNotFound`, `NotBorrower`, `NotInEditingPhase`, `NotInVotingPhase`, `VotingEnded`, `AlreadyVoted`, `NotEligibleForLoan`, `CooldownActive`, `LoanNotFound`, `LoanNotActive`, `ExceedsTreasuryRatio`, `InsufficientTreasury`, `LoanNotOverdue` |
 | 50 | Treasury: `TreasuryProposalNotFound` |
 | 60–67 | Native-swap modules: `NameTaken`, `NameNotFound`, `NoStake`, `InsufficientStake`, `NoCommitment`, `CommitmentMismatch`, `AlreadyRevealed`, `NothingToClaim` |
+| 70–72 | Appended: `ProposalNotExpired`, `InvalidName`, `NotYetRevealed` |
 
 ## Build & test
 
@@ -264,16 +267,15 @@ the native XLM Stellar Asset Contract (`stellar contract id asset --asset native
 
 ## Known limitations
 
-- **Interest distribution is O(n) over every member ever joined**, not just active ones, on every `repay_loan` call. Fine at prototype scale; will hit Soroban resource limits as membership grows. A fix would track active members in a more query-efficient structure.
 - **No upgrade path.** The contract is immutable once deployed — a deliberate trust-minimization tradeoff, not an oversight. Migrating to a new version requires a fresh deployment and an explicit migration path for existing members' balances.
 - **Testnet-only deploy tooling**, consistent with this project's current testnet-stage positioning.
 - ~~Loan defaults had zero on-chain consequence~~ — fixed; see [What the DAO does](#what-the-dao-does).
 - ~~`loan.id` could silently diverge from its originating `proposal.id`~~ — fixed by removing the separate loan-id counter; a loan now always reuses its proposal's id, with a regression test locking in the invariant.
+- ~~Interest distribution was O(n) over every member~~ — fixed with a pull-based yield accumulator: O(1) on repay, each member settles lazily on claim/exit.
 
 ## Roadmap
 
 - External security audit before any mainnet consideration.
-- Resolve the O(n) interest-distribution scaling limitation.
 - A documented upgrade/migration path.
 - Deeper integration testing against `ourdao-backend`'s indexer (event schema drift detection).
 

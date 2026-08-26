@@ -5,9 +5,34 @@ use soroban_sdk::{symbol_short, Address, Env, String};
 
 use crate::error::Error;
 use crate::storage::{self, DataKey};
+use crate::types::{NAME_MAX_LEN, NAME_MIN_LEN};
 
 pub fn register_name(env: &Env, owner: Address, name: String) -> Result<(), Error> {
     util_owner_auth(&owner);
+
+    // Validate length bounds.
+    let len = name.len();
+    if len < NAME_MIN_LEN || len > NAME_MAX_LEN {
+        return Err(Error::InvalidName);
+    }
+
+    // Validate charset: ASCII lowercase alphanumeric, '-', '_'.
+    // No leading or trailing '-' or '_'.
+    let mut buf = [0u8; 64];
+    let len_usize = len as usize;
+    name.copy_into_slice(&mut buf[..len_usize]);
+    let first = buf[0];
+    let last = buf[len_usize - 1];
+    if first == b'-' || first == b'_' || last == b'-' || last == b'_' {
+        return Err(Error::InvalidName);
+    }
+    for i in 0..len_usize {
+        let b = buf[i];
+        let valid = b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_';
+        if !valid {
+            return Err(Error::InvalidName);
+        }
+    }
 
     if let Some(existing) = storage::get_name_owner(env, &name) {
         if existing != owner {
