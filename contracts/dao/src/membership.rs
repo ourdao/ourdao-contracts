@@ -32,6 +32,11 @@ pub fn register_member(env: &Env, member: Address) -> Result<(), Error> {
     };
     storage::set_member(env, &record);
 
+    // Snapshot the accumulator so the new member earns nothing from interest
+    // repaid before they joined.
+    let acc = storage::get_yield_accumulator(env);
+    storage::set_yield_snapshot(env, &member, acc);
+
     if !is_returning {
         let mut members = storage::get_members(env);
         members.push_back(member.clone());
@@ -55,7 +60,7 @@ pub fn exit_dao(env: &Env, member: Address) -> Result<(), Error> {
 
     let share = calculate_exit_share(env, &member);
     let stake = storage::get_stake(env, &member);
-    let pending = storage::get_pending_yield(env, &member);
+    let pending = compute_pending_yield(env, &member);
     let payout = share + stake + pending;
 
     if payout > 0 {
@@ -65,9 +70,9 @@ pub fn exit_dao(env: &Env, member: Address) -> Result<(), Error> {
         storage::set_stake(env, &member, 0);
         storage::set_total_staked(env, storage::get_total_staked(env) - stake);
     }
-    if pending > 0 {
-        storage::set_pending_yield(env, &member, 0);
-    }
+    // Settle yield: snapshot to current accumulator so rejoining starts clean.
+    let acc = storage::get_yield_accumulator(env);
+    storage::set_yield_snapshot(env, &member, acc);
 
     record.status = MemberStatus::Inactive;
     record.share_balance = 0;
@@ -83,11 +88,13 @@ pub fn exit_dao(env: &Env, member: Address) -> Result<(), Error> {
 pub fn claim_rewards(env: &Env, member: Address) -> Result<i128, Error> {
     util::require_initialized(env)?;
     util::require_active_member(env, &member)?;
-    let pending = storage::get_pending_yield(env, &member);
+    let pending = compute_pending_yield(env, &member);
     if pending <= 0 {
         return Err(Error::NothingToClaim);
     }
-    storage::set_pending_yield(env, &member, 0);
+    // Settle: advance snapshot to current accumulator.
+    let acc = storage::get_yield_accumulator(env);
+    storage::set_yield_snapshot(env, &member, acc);
     util::token_client(env).transfer(&util::contract_address(env), &member, &pending);
     env.events()
         .publish((symbol_short!("claimed"),), (member, pending));
@@ -112,4 +119,12 @@ pub fn calculate_exit_share(env: &Env, member: &Address) -> i128 {
         return 0;
     }
     treasury * record.contribution / total_contributions
+}
+
+/// Compute a member's pending yield from the pull-based accumulator.
+/// `pending = accumulator - member_snapshot`. Returns 0 if no yield is owed.
+fn compute_pending_yield(env: &Env, addr: &Address) -> i128 {
+    let acc = storage::get_yield_accumulator(env);
+    let snap = storage::get_yield_snapshot(env, addr);
+    (acc - snap).max(0)
 }

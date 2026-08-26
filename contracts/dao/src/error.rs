@@ -54,4 +54,9 @@ pub enum Error {
     CommitmentMismatch = 65,
     AlreadyRevealed = 66,
     NothingToClaim = 67,
+
+    // ---- appended (keep at end) ----
+    ProposalNotExpired = 70,
+    InvalidName = 71,
+    NotYetRevealed = 72,
 }

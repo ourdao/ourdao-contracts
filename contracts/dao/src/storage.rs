@@ -43,6 +43,9 @@ pub enum DataKey {
     TreasuryVoted(u32, Address),
     PendingYield(Address),
     Stake(Address),
+    // ---- pull-based yield accrual ----
+    YieldAccumulator,
+    MemberYieldSnapshot(Address),
     // native-swap modules
     Doc(ProposalKind, u32),
     Name(String),
@@ -259,19 +262,6 @@ pub fn set_treasury_voted(env: &Env, id: u32, voter: &Address) {
     extend_persistent(env, &key);
 }
 
-pub fn get_pending_yield(env: &Env, addr: &Address) -> i128 {
-    env.storage()
-        .persistent()
-        .get(&DataKey::PendingYield(addr.clone()))
-        .unwrap_or(0)
-}
-
-pub fn set_pending_yield(env: &Env, addr: &Address, amount: i128) {
-    let key = DataKey::PendingYield(addr.clone());
-    env.storage().persistent().set(&key, &amount);
-    extend_persistent(env, &key);
-}
-
 pub fn get_stake(env: &Env, addr: &Address) -> i128 {
     env.storage()
         .persistent()
@@ -282,6 +272,34 @@ pub fn get_stake(env: &Env, addr: &Address) -> i128 {
 pub fn set_stake(env: &Env, addr: &Address, amount: i128) {
     let key = DataKey::Stake(addr.clone());
     env.storage().persistent().set(&key, &amount);
+    extend_persistent(env, &key);
+}
+
+// ---------- pull-based yield accrual ----------
+
+pub fn get_yield_accumulator(env: &Env) -> i128 {
+    env.storage()
+        .instance()
+        .get(&DataKey::YieldAccumulator)
+        .unwrap_or(0)
+}
+
+pub fn set_yield_accumulator(env: &Env, value: i128) {
+    env.storage()
+        .instance()
+        .set(&DataKey::YieldAccumulator, &value);
+}
+
+pub fn get_yield_snapshot(env: &Env, addr: &Address) -> i128 {
+    env.storage()
+        .persistent()
+        .get(&DataKey::MemberYieldSnapshot(addr.clone()))
+        .unwrap_or(0)
+}
+
+pub fn set_yield_snapshot(env: &Env, addr: &Address, value: i128) {
+    let key = DataKey::MemberYieldSnapshot(addr.clone());
+    env.storage().persistent().set(&key, &value);
     extend_persistent(env, &key);
 }
 

@@ -9,6 +9,12 @@ pub const PROPOSAL_EDITING_PERIOD: u64 = 3 * 24 * 60 * 60; // 3 days
 /// Voting window length once a proposal enters the voting phase.
 pub const VOTING_PERIOD: u64 = 7 * 24 * 60 * 60; // 7 days
 
+/// Minimum length for a registered name (inclusive).
+pub const NAME_MIN_LEN: u32 = 3;
+/// Maximum length for a registered name (inclusive). Keeps the on-chain
+/// storage and every `name_reg` event payload bounded.
+pub const NAME_MAX_LEN: u32 = 32;
+
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MemberStatus {
