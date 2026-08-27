@@ -276,7 +276,7 @@ the native XLM Stellar Asset Contract (`stellar contract id asset --asset native
 
 ## Known limitations
 
-- **No upgrade path.** The contract is immutable once deployed — a deliberate trust-minimization tradeoff, not an oversight. Migrating to a new version requires a fresh deployment and an explicit migration path for existing members' balances.
+- **No upgrade path.** The contract is immutable once deployed — a deliberate trust-minimization tradeoff, not an oversight. Migrating to a new version requires a fresh deployment; see [`docs/MIGRATION.md`](./docs/MIGRATION.md) for the procedure, what state can and can't be carried over, and the trust assumption a migration necessarily introduces.
 - **Testnet-only deploy tooling**, consistent with this project's current testnet-stage positioning.
 - ~~Loan defaults had zero on-chain consequence~~ — fixed; see [What the DAO does](#what-the-dao-does).
 - ~~`loan.id` could silently diverge from its originating `proposal.id`~~ — fixed by removing the separate loan-id counter; a loan now always reuses its proposal's id, with a regression test locking in the invariant.
@@ -285,7 +285,7 @@ the native XLM Stellar Asset Contract (`stellar contract id asset --asset native
 ## Roadmap
 
 - External security audit before any mainnet consideration.
-- A documented upgrade/migration path.
+- Implement the `seed_state` migration entrypoint designed in [`docs/MIGRATION.md`](./docs/MIGRATION.md) (the doc itself is done; the contract-side entrypoint is a follow-up).
 - Deeper integration testing against `ourdao-backend`'s indexer (event schema drift detection).
 
 ## Contributing
