@@ -2,7 +2,7 @@ use soroban_sdk::{symbol_short, Address, Env, String};
 
 use crate::error::Error;
 use crate::storage;
-use crate::types::{ProposalStatus, TreasuryProposal, TREASURY_THRESHOLD};
+use crate::types::{ProposalStatus, TreasuryProposal, TREASURY_THRESHOLD, VOTING_PERIOD};
 use crate::util;
 
 pub fn propose_withdrawal(
@@ -71,6 +71,16 @@ pub fn tally(
     support: bool,
 ) -> Result<(), Error> {
     if proposal.status != ProposalStatus::Pending {
+        return Err(Error::NotInVotingPhase);
+    }
+    // Treasury proposals never expired before this check (#17) — a Pending
+    // proposal could sit indefinitely and still be voted through/executed
+    // long after the intended voting window. Mirror the loan proposal
+    // lifecycle: once VOTING_PERIOD has elapsed since creation, persist the
+    // Expired status and reject further votes.
+    if env.ledger().timestamp() > proposal.created_at + VOTING_PERIOD {
+        proposal.status = ProposalStatus::Expired;
+        storage::set_treasury_proposal(env, &proposal);
         return Err(Error::NotInVotingPhase);
     }
     if storage::has_treasury_voted(env, proposal.id, voter) {
