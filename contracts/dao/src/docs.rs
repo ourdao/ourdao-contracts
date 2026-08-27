@@ -16,6 +16,17 @@ fn proposal_exists(env: &Env, kind: &ProposalKind, id: u32) -> bool {
     }
 }
 
+/// Returns the address authorized to attach/overwrite this proposal's
+/// document — the borrower for loan proposals, the proposer for treasury
+/// proposals. `None` if the proposal doesn't exist (caller should already
+/// have checked `proposal_exists`).
+fn proposal_owner(env: &Env, kind: &ProposalKind, id: u32) -> Option<Address> {
+    match kind {
+        ProposalKind::Loan => storage::get_loan_proposal(env, id).map(|p| p.borrower),
+        ProposalKind::Treasury => storage::get_treasury_proposal(env, id).map(|p| p.proposer),
+    }
+}
+
 pub fn attach_document(
     env: &Env,
     caller: Address,
@@ -27,6 +38,11 @@ pub fn attach_document(
     util::require_active_member(env, &caller)?;
     if !proposal_exists(env, &kind, proposal_id) {
         return Err(Error::ProposalNotFound);
+    }
+    // #21 — being an active member was sufficient to overwrite ANY proposal's
+    // document. Restrict to the proposal's own proposer/borrower.
+    if proposal_owner(env, &kind, proposal_id) != Some(caller.clone()) {
+        return Err(Error::NotProposalOwner);
     }
     storage::set_doc(env, kind, proposal_id, &content_hash);
     env.events()

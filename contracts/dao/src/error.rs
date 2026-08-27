@@ -59,4 +59,7 @@ pub enum Error {
     ProposalNotExpired = 70,
     InvalidName = 71,
     NotYetRevealed = 72,
+    /// Caller is not the proposal's proposer/borrower and may not modify its
+    /// attached document (#21).
+    NotProposalOwner = 73,
 }
