@@ -16,7 +16,7 @@ pub fn stake(env: &Env, member: Address, amount: i128) -> Result<(), Error> {
         return Err(Error::InvalidAmount);
     }
 
-    util::token_client(env).transfer(&member, &util::contract_address(env), &amount);
+    util::token_client(env).transfer(&member, util::contract_address(env), &amount);
 
     let new_stake = storage::get_stake(env, &member) + amount;
     storage::set_stake(env, &member, new_stake);

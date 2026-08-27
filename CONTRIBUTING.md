@@ -44,15 +44,20 @@ If `cargo test` passes on a clean checkout, you're set up correctly. If it doesn
 
 ## Running the checks CI runs
 
-CI will run exactly these three, and a pull request that fails any of them will not be merged. Run them locally first:
+The `build-and-test` job runs exactly these four, and a pull request that fails any of them will not be merged. Run them locally first:
 
 ```bash
 cargo fmt --all -- --check                                  # formatting
-cargo test --locked                                         # full test suite
-cargo build --locked --target wasm32v1-none --release       # wasm build
+cargo clippy --all-targets --locked -- -D warnings           # lint
+cargo test --locked                                          # full test suite
+cargo build --locked --target wasm32v1-none --release        # wasm build
 ```
 
-`make test`, `make fmt`, and `make build` are shorthands for the same things.
+`make test`, `make fmt`, `make clippy`, and `make build` are shorthands for the same things.
+
+A separate `audit` job runs `cargo audit` against `Cargo.lock` on every push and PR (`cargo install cargo-audit --locked` once locally, then `cargo audit` or `make audit`). It's a distinct job on purpose: an advisory landing against a dependency we already know about and can't move on (see the `ed25519-dalek` note below) shouldn't block merging unrelated PRs, but it still needs to stay visible.
+
+If Clippy flags something you believe is wrong for this codebase, `#[allow(...)]` it at the narrowest possible scope — a single item or expression, never crate- or module-level — with a one-line comment explaining why.
 
 Note the `--locked` flag: the committed `Cargo.lock` is authoritative. Don't update dependencies as a side effect of an unrelated change — if a dependency bump is genuinely needed, it belongs in its own pull request with its own justification.
 

@@ -20,7 +20,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt
+          components: rustfmt, clippy
           targets: wasm32v1-none
 
       - name: Cache cargo registry and build
@@ -37,6 +37,9 @@ jobs:
       - name: Format check
         run: cargo fmt --all -- --check
 
+      - name: Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
+
       # --locked keeps the committed Cargo.lock (which pins ed25519-dalek to
       # 2.2.0) authoritative, so the resolver can't float onto an incompatible
       # transitive release.
@@ -45,3 +48,16 @@ jobs:
 
       - name: Build wasm (release)
         run: cargo build --locked --target ${{ env.WASM_TARGET }} --release
+
+  audit:
+    runs-on: ubuntu-latest
+    # A separate job so a newly published advisory (which can land against a
+    # pin we already know about and can't move — see the ed25519-dalek note
+    # in the README) surfaces visibly without blocking merges on unrelated PRs.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Audit dependencies
+        uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}

@@ -12,7 +12,7 @@ pub fn register_name(env: &Env, owner: Address, name: String) -> Result<(), Erro
 
     // Validate length bounds.
     let len = name.len();
-    if len < NAME_MIN_LEN || len > NAME_MAX_LEN {
+    if !(NAME_MIN_LEN..=NAME_MAX_LEN).contains(&len) {
         return Err(Error::InvalidName);
     }
 
@@ -26,8 +26,7 @@ pub fn register_name(env: &Env, owner: Address, name: String) -> Result<(), Erro
     if first == b'-' || first == b'_' || last == b'-' || last == b'_' {
         return Err(Error::InvalidName);
     }
-    for i in 0..len_usize {
-        let b = buf[i];
+    for &b in buf.iter().take(len_usize) {
         let valid = b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_';
         if !valid {
             return Err(Error::InvalidName);

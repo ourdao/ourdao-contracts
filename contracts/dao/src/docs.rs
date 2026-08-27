@@ -28,7 +28,7 @@ pub fn attach_document(
     if !proposal_exists(env, &kind, proposal_id) {
         return Err(Error::ProposalNotFound);
     }
-    storage::set_doc(env, kind.clone(), proposal_id, &content_hash);
+    storage::set_doc(env, kind, proposal_id, &content_hash);
     env.events()
         .publish((symbol_short!("doc_attn"),), (kind, proposal_id, caller));
     Ok(())

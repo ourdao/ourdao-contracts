@@ -18,7 +18,7 @@ pub fn register_member(env: &Env, member: Address) -> Result<(), Error> {
     }
 
     let fee = storage::get_membership_fee(env);
-    util::token_client(env).transfer(&member, &util::contract_address(env), &fee);
+    util::token_client(env).transfer(&member, util::contract_address(env), &fee);
 
     let is_returning = storage::get_member(env, &member).is_some();
     let record = Member {

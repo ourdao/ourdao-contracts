@@ -207,12 +207,20 @@ Numeric codes are stable and part of the ABI — new variants get appended rathe
 Requires the Rust `wasm32v1-none` target (Rust 1.84+) and the [`stellar` CLI](https://developers.stellar.org/docs/tools/developer-tools/cli/stellar-cli).
 
 ```bash
-# Native unit tests — 19 tests covering the full lifecycle of every module,
-# including loan defaults, commit-reveal privacy, and staking-boosted voting
+# Native unit tests — including loan defaults, commit-reveal privacy,
+# staking-boosted voting, and property tests over the exit-share, interest,
+# and staking-weight math
 cargo test
 
 # Formatting check (matches CI)
 cargo fmt --check
+
+# Lint (matches CI — warnings fail the build)
+cargo clippy --all-targets -- -D warnings
+
+# Dependency advisories (matches CI, informational — see the audit job note below)
+cargo install cargo-audit --locked # one-time
+cargo audit
 
 # Release wasm
 cargo build --target wasm32v1-none --release
@@ -221,7 +229,7 @@ cargo build --target wasm32v1-none --release
 stellar contract build --optimize
 ```
 
-CI (`.github/workflows/ci.yml`) runs `cargo fmt --check`, `cargo test`, and the wasm build on every push and PR.
+CI (`.github/workflows/ci.yml`) runs `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, and the wasm build in one job on every push and PR. A separate `audit` job runs `cargo audit` on the same triggers — it's split out so a newly published advisory (which can land against a pin we already know about and can't move, like the one below) surfaces visibly without blocking merges on unrelated PRs.
 
 > **Note on dependencies:** `Cargo.lock` pins `ed25519-dalek` to `2.2.0`. A newer
 > transitive release (`3.0.0`) is incompatible with the pinned `rand_core` used by
