@@ -413,7 +413,10 @@ pub fn mark_loan_defaulted(env: &Env, loan_id: u32) -> Result<(), Error> {
 /// a snapshot of the accumulator at their last interaction (join, claim,
 /// or exit). Their pending yield is `(accumulator - snapshot) * 1`.
 ///
-fn distribute_interest(env: &Env, interest: i128) {
+/// `pub(crate)` (rather than private) solely so the property tests in
+/// `test.rs` can drive it directly with arbitrary `interest` values instead
+/// of only the ones reachable through a real loan's computed interest.
+pub(crate) fn distribute_interest(env: &Env, interest: i128) {
     let active = storage::get_active_members(env) as i128;
     if interest <= 0 || active == 0 {
         return;
