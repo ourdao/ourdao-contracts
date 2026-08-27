@@ -1,7 +1,7 @@
 WASM_TARGET := wasm32v1-none
 WASM := target/$(WASM_TARGET)/release/ourdao_dao.wasm
 
-.PHONY: all build test fmt clean optimize
+.PHONY: all build test fmt clippy audit clean optimize
 
 all: build test
 
@@ -17,6 +17,13 @@ test:
 
 fmt:
 	cargo fmt --all
+
+clippy:
+	cargo clippy --all-targets -- -D warnings
+
+# Requires `cargo install cargo-audit --locked` once.
+audit:
+	cargo audit
 
 clean:
 	cargo clean

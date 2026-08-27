@@ -243,7 +243,48 @@ fn approve_and_disburse(env: &Env, proposal: &LoanProposal) -> Result<(), Error>
     Ok(())
 }
 
+/// Repays a loan's entire remaining balance in one transaction. A thin
+/// wrapper over the same path [`repay_loan_partial`] uses, so existing
+/// integrations built against this zero-amount-argument entrypoint keep
+/// working unchanged — see [`repay_loan_partial`] for why a breaking ABI
+/// change to this entrypoint was avoided instead.
 pub fn repay_loan(env: &Env, borrower: Address, loan_id: u32) -> Result<(), Error> {
+    repay_loan_internal(env, borrower, loan_id, None)
+}
+
+/// Repays up to `amount` of a loan's outstanding balance. `amount` must be
+/// positive and may not exceed what's currently outstanding.
+///
+/// Payments apply to accrued interest first, then principal: whatever
+/// portion of `amount` falls within the loan's still-unpaid interest is
+/// distributed to active members as yield immediately, exactly as a full
+/// repayment always has. The remainder (principal) needs no separate
+/// bookkeeping — it's already sitting in the contract's token balance the
+/// moment it's transferred in, so it's counted in the treasury right away.
+///
+/// The loan only flips to `Repaid` (and `has_active_loan` only clears) once
+/// the outstanding balance reaches exactly zero.
+///
+/// This is a new entrypoint rather than an added parameter on `repay_loan`:
+/// the ABI isn't upgradeable once deployed, and a new entrypoint leaves
+/// every existing caller of `repay_loan(borrower, loan_id)` — including
+/// `ourdao-backend` and any already-deployed clients — untouched, at the
+/// cost of two entrypoints sharing one code path instead of one.
+pub fn repay_loan_partial(
+    env: &Env,
+    borrower: Address,
+    loan_id: u32,
+    amount: i128,
+) -> Result<(), Error> {
+    repay_loan_internal(env, borrower, loan_id, Some(amount))
+}
+
+fn repay_loan_internal(
+    env: &Env,
+    borrower: Address,
+    loan_id: u32,
+    amount: Option<i128>,
+) -> Result<(), Error> {
     util::require_initialized(env)?;
     borrower.require_auth();
 
@@ -256,24 +297,36 @@ pub fn repay_loan(env: &Env, borrower: Address, loan_id: u32) -> Result<(), Erro
     }
 
     let outstanding = loan.total_repayment - loan.amount_repaid;
-    util::token_client(env).transfer(&borrower, &util::contract_address(env), &outstanding);
-
-    loan.amount_repaid = loan.total_repayment;
-    loan.status = LoanStatus::Repaid;
-    storage::set_loan(env, &loan);
-
-    if let Some(mut member) = storage::get_member(env, &borrower) {
-        member.has_active_loan = false;
-        storage::set_member(env, &member);
+    let amount = amount.unwrap_or(outstanding);
+    if amount <= 0 || amount > outstanding {
+        return Err(Error::InvalidAmount);
     }
 
-    let interest = loan.total_repayment - loan.principal;
-    distribute_interest(env, interest);
+    util::token_client(env).transfer(&borrower, util::contract_address(env), &amount);
 
-    env.events().publish(
-        (symbol_short!("loan_rpy"),),
-        (loan_id, borrower, outstanding),
-    );
+    // Interest-first split: how much of the loan's total interest was
+    // already covered before this payment vs. after it. The difference is
+    // the interest component of *this* payment; everything else is principal.
+    let interest_total = loan.total_repayment - loan.principal;
+    let interest_before = loan.amount_repaid.min(interest_total);
+    loan.amount_repaid += amount;
+    let interest_after = loan.amount_repaid.min(interest_total);
+    let interest_component = interest_after - interest_before;
+
+    let remaining = loan.total_repayment - loan.amount_repaid;
+    if remaining == 0 {
+        loan.status = LoanStatus::Repaid;
+        if let Some(mut member) = storage::get_member(env, &borrower) {
+            member.has_active_loan = false;
+            storage::set_member(env, &member);
+        }
+    }
+    storage::set_loan(env, &loan);
+
+    distribute_interest(env, interest_component);
+
+    env.events()
+        .publish((symbol_short!("loan_rpy"),), (loan_id, borrower, remaining));
     Ok(())
 }
 
@@ -359,7 +412,11 @@ pub fn mark_loan_defaulted(env: &Env, loan_id: u32) -> Result<(), Error> {
 /// `YieldAccumulator` by `interest / active_members`. Each member stores
 /// a snapshot of the accumulator at their last interaction (join, claim,
 /// or exit). Their pending yield is `(accumulator - snapshot) * 1`.
-fn distribute_interest(env: &Env, interest: i128) {
+///
+/// `pub(crate)` (rather than private) solely so the property tests in
+/// `test.rs` can drive it directly with arbitrary `interest` values instead
+/// of only the ones reachable through a real loan's computed interest.
+pub(crate) fn distribute_interest(env: &Env, interest: i128) {
     let active = storage::get_active_members(env) as i128;
     if interest <= 0 || active == 0 {
         return;

@@ -117,7 +117,8 @@ All entrypoints are on the `OurDao` contract (`lib.rs`). Errors are the numeric 
 | `request_loan(borrower, amount) -> proposal_id` | Opens a loan proposal (3-day editing window). |
 | `edit_loan_proposal(borrower, proposal_id, new_amount)` | Only during the editing window, only the borrower. |
 | `vote_on_loan_proposal(voter, proposal_id, support)` | Auto-approves and disburses at the consensus threshold. |
-| `repay_loan(borrower, loan_id)` | Collects the full outstanding balance (no partial repayment). |
+| `repay_loan(borrower, loan_id)` | Collects the full outstanding balance in one transaction. |
+| `repay_loan_partial(borrower, loan_id, amount)` | Collects up to `amount` of the outstanding balance. Applies to accrued interest first, then principal; the loan flips to repaid only once the balance reaches exactly zero. |
 | `mark_loan_defaulted(loan_id)` | **Permissionless.** Callable once `due_time + grace_period` has elapsed. |
 | `expire_loan_proposal(proposal_id)` | **Permissionless keeper call.** Persists the expired state for a proposal whose voting window has passed without reaching quorum. No-op on repeat calls. |
 
@@ -174,7 +175,7 @@ Every state-changing call publishes an event, which `ourdao-backend` indexes sin
 | `loan_edit` | `(proposal_id, borrower, new_amount, total_repayment)` | `edit_loan_proposal` |
 | `loan_vote` | `(proposal_id, voter, support)` | `vote_on_loan_proposal` |
 | `loan_appr` | `(id, borrower, amount)` | auto-fired on approval — `id` is both the loan's and its proposal's id |
-| `loan_rpy` | `(loan_id, borrower, outstanding)` | `repay_loan` |
+| `loan_rpy` | `(loan_id, borrower, outstanding)` | `repay_loan` / `repay_loan_partial` — `outstanding` is the balance still remaining *after* this payment (0 for a payment that fully repays the loan) |
 | `loan_dflt` | `(loan_id, borrower, penalty)` | `mark_loan_defaulted` |
 | `loan_exp` | `(proposal_id, borrower)` | `expire_loan_proposal` (permissionless keeper) |
 | `interest` | `(interest, active_members)` | fired alongside `loan_rpy` |
@@ -206,12 +207,20 @@ Numeric codes are stable and part of the ABI — new variants get appended rathe
 Requires the Rust `wasm32v1-none` target (Rust 1.84+) and the [`stellar` CLI](https://developers.stellar.org/docs/tools/developer-tools/cli/stellar-cli).
 
 ```bash
-# Native unit tests — 19 tests covering the full lifecycle of every module,
-# including loan defaults, commit-reveal privacy, and staking-boosted voting
+# Native unit tests — including loan defaults, commit-reveal privacy,
+# staking-boosted voting, and property tests over the exit-share, interest,
+# and staking-weight math
 cargo test
 
 # Formatting check (matches CI)
 cargo fmt --check
+
+# Lint (matches CI — warnings fail the build)
+cargo clippy --all-targets -- -D warnings
+
+# Dependency advisories (matches CI, informational — see the audit job note below)
+cargo install cargo-audit --locked # one-time
+cargo audit
 
 # Release wasm
 cargo build --target wasm32v1-none --release
@@ -220,7 +229,7 @@ cargo build --target wasm32v1-none --release
 stellar contract build --optimize
 ```
 
-CI (`.github/workflows/ci.yml`) runs `cargo fmt --check`, `cargo test`, and the wasm build on every push and PR.
+CI (`.github/workflows/ci.yml`) runs `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, and the wasm build in one job on every push and PR. A separate `audit` job runs `cargo audit` on the same triggers — it's split out so a newly published advisory (which can land against a pin we already know about and can't move, like the one below) surfaces visibly without blocking merges on unrelated PRs.
 
 > **Note on dependencies:** `Cargo.lock` pins `ed25519-dalek` to `2.2.0`. A newer
 > transitive release (`3.0.0`) is incompatible with the pinned `rand_core` used by
@@ -267,7 +276,7 @@ the native XLM Stellar Asset Contract (`stellar contract id asset --asset native
 
 ## Known limitations
 
-- **No upgrade path.** The contract is immutable once deployed — a deliberate trust-minimization tradeoff, not an oversight. Migrating to a new version requires a fresh deployment and an explicit migration path for existing members' balances.
+- **No upgrade path.** The contract is immutable once deployed — a deliberate trust-minimization tradeoff, not an oversight. Migrating to a new version requires a fresh deployment; see [`docs/MIGRATION.md`](./docs/MIGRATION.md) for the procedure, what state can and can't be carried over, and the trust assumption a migration necessarily introduces.
 - **Testnet-only deploy tooling**, consistent with this project's current testnet-stage positioning.
 - ~~Loan defaults had zero on-chain consequence~~ — fixed; see [What the DAO does](#what-the-dao-does).
 - ~~`loan.id` could silently diverge from its originating `proposal.id`~~ — fixed by removing the separate loan-id counter; a loan now always reuses its proposal's id, with a regression test locking in the invariant.
@@ -276,7 +285,7 @@ the native XLM Stellar Asset Contract (`stellar contract id asset --asset native
 ## Roadmap
 
 - External security audit before any mainnet consideration.
-- A documented upgrade/migration path.
+- Implement the `seed_state` migration entrypoint designed in [`docs/MIGRATION.md`](./docs/MIGRATION.md) (the doc itself is done; the contract-side entrypoint is a follow-up).
 - Deeper integration testing against `ourdao-backend`'s indexer (event schema drift detection).
 
 ## Contributing
