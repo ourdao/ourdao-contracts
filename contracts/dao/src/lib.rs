@@ -130,6 +130,18 @@ impl OurDao {
         loans::repay_loan(&env, borrower, loan_id)
     }
 
+    /// Repays up to `amount` of a loan's outstanding balance. See
+    /// `loans::repay_loan_partial` for the interest/principal split and why
+    /// this is a separate entrypoint from `repay_loan`.
+    pub fn repay_loan_partial(
+        env: Env,
+        borrower: Address,
+        loan_id: u32,
+        amount: i128,
+    ) -> Result<(), Error> {
+        loans::repay_loan_partial(&env, borrower, loan_id, amount)
+    }
+
     /// Marks an overdue loan as defaulted. Permissionless — see `loans::mark_loan_defaulted`.
     pub fn mark_loan_defaulted(env: Env, loan_id: u32) -> Result<(), Error> {
         loans::mark_loan_defaulted(&env, loan_id)

@@ -117,7 +117,8 @@ All entrypoints are on the `OurDao` contract (`lib.rs`). Errors are the numeric 
 | `request_loan(borrower, amount) -> proposal_id` | Opens a loan proposal (3-day editing window). |
 | `edit_loan_proposal(borrower, proposal_id, new_amount)` | Only during the editing window, only the borrower. |
 | `vote_on_loan_proposal(voter, proposal_id, support)` | Auto-approves and disburses at the consensus threshold. |
-| `repay_loan(borrower, loan_id)` | Collects the full outstanding balance (no partial repayment). |
+| `repay_loan(borrower, loan_id)` | Collects the full outstanding balance in one transaction. |
+| `repay_loan_partial(borrower, loan_id, amount)` | Collects up to `amount` of the outstanding balance. Applies to accrued interest first, then principal; the loan flips to repaid only once the balance reaches exactly zero. |
 | `mark_loan_defaulted(loan_id)` | **Permissionless.** Callable once `due_time + grace_period` has elapsed. |
 | `expire_loan_proposal(proposal_id)` | **Permissionless keeper call.** Persists the expired state for a proposal whose voting window has passed without reaching quorum. No-op on repeat calls. |
 
@@ -174,7 +175,7 @@ Every state-changing call publishes an event, which `ourdao-backend` indexes sin
 | `loan_edit` | `(proposal_id, borrower, new_amount, total_repayment)` | `edit_loan_proposal` |
 | `loan_vote` | `(proposal_id, voter, support)` | `vote_on_loan_proposal` |
 | `loan_appr` | `(id, borrower, amount)` | auto-fired on approval — `id` is both the loan's and its proposal's id |
-| `loan_rpy` | `(loan_id, borrower, outstanding)` | `repay_loan` |
+| `loan_rpy` | `(loan_id, borrower, outstanding)` | `repay_loan` / `repay_loan_partial` — `outstanding` is the balance still remaining *after* this payment (0 for a payment that fully repays the loan) |
 | `loan_dflt` | `(loan_id, borrower, penalty)` | `mark_loan_defaulted` |
 | `loan_exp` | `(proposal_id, borrower)` | `expire_loan_proposal` (permissionless keeper) |
 | `interest` | `(interest, active_members)` | fired alongside `loan_rpy` |

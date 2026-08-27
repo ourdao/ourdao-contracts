@@ -667,3 +667,167 @@ fn yield_accumulator_join_claim_exit_rejoin() {
     s.client.register_member(&v1);
     assert_eq!(s.client.get_pending_yield(&v1), 0);
 }
+
+// ==================== issue #5: partial loan repayment ====================
+
+#[test]
+fn partial_repayment_then_full() {
+    let s = setup(3);
+    let borrower = s.members.get(0).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let v2 = s.members.get(2).unwrap();
+
+    let pid = s.client.request_loan(&borrower, &1_000);
+    advance(&s.env, EDITING + 1);
+    s.client.vote_on_loan_proposal(&v1, &pid, &true);
+    s.client.vote_on_loan_proposal(&v2, &pid, &true);
+
+    let loan = s.client.get_loan(&pid).unwrap();
+    let outstanding = loan.total_repayment - loan.amount_repaid;
+    let half = outstanding / 2;
+    assert!(half > 0);
+
+    let bal_before = s.token.balance(&borrower);
+    s.client.repay_loan_partial(&borrower, &pid, &half);
+
+    let loan = s.client.get_loan(&pid).unwrap();
+    assert_eq!(loan.status, LoanStatus::Active);
+    assert_eq!(loan.amount_repaid, half);
+    assert_eq!(s.token.balance(&borrower), bal_before - half);
+    assert!(s.client.get_member(&borrower).unwrap().has_active_loan);
+
+    // Interest-first: whatever portion of `half` falls inside the loan's
+    // total interest is claimable right away, exactly as a full repayment.
+    let interest_total = loan.total_repayment - loan.principal;
+    let interest_component = half.min(interest_total);
+    let per = interest_component / 3;
+    assert_eq!(s.client.get_pending_yield(&v1), per);
+
+    // Repaying the rest via the full-repayment entrypoint clears the loan.
+    s.client.repay_loan(&borrower, &pid);
+    let loan = s.client.get_loan(&pid).unwrap();
+    assert_eq!(loan.status, LoanStatus::Repaid);
+    assert_eq!(loan.amount_repaid, loan.total_repayment);
+    assert!(!s.client.get_member(&borrower).unwrap().has_active_loan);
+}
+
+#[test]
+fn partial_repayment_overpay_rejected() {
+    let s = setup(3);
+    let borrower = s.members.get(0).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let v2 = s.members.get(2).unwrap();
+
+    let pid = s.client.request_loan(&borrower, &500);
+    advance(&s.env, EDITING + 1);
+    s.client.vote_on_loan_proposal(&v1, &pid, &true);
+    s.client.vote_on_loan_proposal(&v2, &pid, &true);
+
+    let loan = s.client.get_loan(&pid).unwrap();
+    let outstanding = loan.total_repayment - loan.amount_repaid;
+    let bal_before = s.token.balance(&borrower);
+
+    let over = s
+        .client
+        .try_repay_loan_partial(&borrower, &pid, &(outstanding + 1));
+    assert_eq!(over, Err(Ok(Error::InvalidAmount)));
+
+    let zero = s.client.try_repay_loan_partial(&borrower, &pid, &0);
+    assert_eq!(zero, Err(Ok(Error::InvalidAmount)));
+
+    let negative = s.client.try_repay_loan_partial(&borrower, &pid, &-10);
+    assert_eq!(negative, Err(Ok(Error::InvalidAmount)));
+
+    // None of the rejected attempts moved any funds or touched the loan.
+    assert_eq!(s.token.balance(&borrower), bal_before);
+    assert_eq!(s.client.get_loan(&pid).unwrap().amount_repaid, 0);
+}
+
+#[test]
+fn partial_repayments_sum_to_exact_total_marks_repaid() {
+    let s = setup(3);
+    let borrower = s.members.get(0).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let v2 = s.members.get(2).unwrap();
+
+    let pid = s.client.request_loan(&borrower, &1_000);
+    advance(&s.env, EDITING + 1);
+    s.client.vote_on_loan_proposal(&v1, &pid, &true);
+    s.client.vote_on_loan_proposal(&v2, &pid, &true);
+
+    let total = s.client.get_loan(&pid).unwrap().total_repayment;
+    let a = total / 3;
+    let b = total / 3;
+    let c = total - a - b; // remainder, so a + b + c == total exactly
+
+    s.client.repay_loan_partial(&borrower, &pid, &a);
+    assert_eq!(s.client.get_loan(&pid).unwrap().status, LoanStatus::Active);
+    s.client.repay_loan_partial(&borrower, &pid, &b);
+    assert_eq!(s.client.get_loan(&pid).unwrap().status, LoanStatus::Active);
+    s.client.repay_loan_partial(&borrower, &pid, &c);
+
+    let loan = s.client.get_loan(&pid).unwrap();
+    assert_eq!(loan.status, LoanStatus::Repaid);
+    assert_eq!(loan.amount_repaid, total);
+    assert!(!s.client.get_member(&borrower).unwrap().has_active_loan);
+}
+
+#[test]
+fn partial_payment_overdue_loan_still_defaultable() {
+    let s = setup(3);
+    let borrower = s.members.get(0).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let v2 = s.members.get(2).unwrap();
+
+    let pid = s.client.request_loan(&borrower, &500);
+    advance(&s.env, EDITING + 1);
+    s.client.vote_on_loan_proposal(&v1, &pid, &true);
+    s.client.vote_on_loan_proposal(&v2, &pid, &true);
+
+    let outstanding = s.client.get_loan(&pid).unwrap().total_repayment;
+    let partial = outstanding / 4;
+    assert!(partial > 0);
+    s.client.repay_loan_partial(&borrower, &pid, &partial);
+
+    advance(&s.env, LOAN_DURATION + 1); // past due_time, grace period is 0
+
+    let contribution_before = s.client.get_member(&borrower).unwrap().contribution;
+    s.client.mark_loan_defaulted(&pid);
+
+    let loan = s.client.get_loan(&pid).unwrap();
+    assert_eq!(loan.status, LoanStatus::Defaulted);
+    let member = s.client.get_member(&borrower).unwrap();
+    assert!(!member.has_active_loan);
+    let expected_penalty = contribution_before * 2_000 / 10_000; // 20% per policy()
+    assert_eq!(member.contribution, contribution_before - expected_penalty);
+
+    // Defaulted loans are terminal — no further repayment, partial or full.
+    let res = s.client.try_repay_loan_partial(&borrower, &pid, &1);
+    assert_eq!(res, Err(Ok(Error::LoanNotActive)));
+}
+
+#[test]
+fn exit_blocked_while_partial_balance_remains() {
+    let s = setup(3);
+    let borrower = s.members.get(0).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let v2 = s.members.get(2).unwrap();
+
+    let pid = s.client.request_loan(&borrower, &500);
+    advance(&s.env, EDITING + 1);
+    s.client.vote_on_loan_proposal(&v1, &pid, &true);
+    s.client.vote_on_loan_proposal(&v2, &pid, &true);
+
+    let outstanding = s.client.get_loan(&pid).unwrap().total_repayment;
+    let partial = outstanding / 2;
+    assert!(partial > 0 && partial < outstanding);
+    s.client.repay_loan_partial(&borrower, &pid, &partial);
+
+    let blocked = s.client.try_exit_dao(&borrower);
+    assert_eq!(blocked, Err(Ok(Error::HasActiveLoan)));
+
+    s.client.repay_loan(&borrower, &pid);
+    s.client.exit_dao(&borrower);
+    assert!(!s.client.is_member(&borrower));
+}
+
