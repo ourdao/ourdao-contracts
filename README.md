@@ -269,6 +269,8 @@ the native XLM Stellar Asset Contract (`stellar contract id asset --asset native
 
 ## Security notes
 
+Found a vulnerability? See [SECURITY.md](./SECURITY.md) for scope and how to report it privately.
+
 - **No reentrancy surface.** Soroban's execution model has no arbitrary external calls back into the contract mid-execution from an untrusted token, but all balance-changing operations still follow check-effects-interactions ordering (state updated before/alongside the token transfer, not after).
 - **Auth is enforced per-call, not assumed.** Every state-changing entrypoint that moves a specific member's funds or represents their vote calls `require_auth()` on that member's own address — a caller cannot act on behalf of another address.
 - **`mark_loan_defaulted` is intentionally unauthenticated.** This is a deliberate design choice, not an oversight: the action is purely a function of on-chain time and existing loan state, so there is nothing to authorize — restricting it to admins would just add unnecessary liveness risk (an admin going offline shouldn't block defaults from being recorded).
@@ -292,7 +294,7 @@ the native XLM Stellar Asset Contract (`stellar contract id asset --asset native
 
 Contributions are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) for local setup, the checks CI enforces, and the contract-specific rules (append-only error codes, events on every state change, TTL discipline). Please claim an issue before opening a pull request.
 
-Found a security vulnerability? Don't open a public issue — use GitHub's private vulnerability reporting on this repo.
+Found a security vulnerability? See [SECURITY.md](./SECURITY.md) — don't open a public issue.
 
 ## License
 

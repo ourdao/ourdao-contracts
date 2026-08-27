@@ -91,9 +91,7 @@ To keep review time going to real contributions, the following are closed on sig
 
 ## Reporting a security issue
 
-**Do not open a public issue for a security vulnerability.** The contract has not yet been externally audited, and OurDAO is testnet-stage — but please still report privately, via GitHub's [private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability) on this repository.
-
-Include what you found, how to reproduce it, and what an attacker could do with it.
+**Do not open a public issue for a security vulnerability.** See [SECURITY.md](./SECURITY.md) for scope, how to report privately, and our response commitment.
 
 ## License
 
