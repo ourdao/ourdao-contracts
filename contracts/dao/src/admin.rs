@@ -13,6 +13,12 @@ fn validate_policy(policy: &LoanPolicy) -> Result<(), Error> {
         || policy.min_interest_rate > policy.max_interest_rate
         || policy.max_loan_to_treasury_ratio as i128 > BASIS_POINTS
         || policy.default_penalty_bps as i128 > BASIS_POINTS
+        || policy.editing_period == 0
+        || policy.voting_period == 0
+        || policy.editing_period > 30 * 24 * 60 * 60
+        || policy.voting_period > 30 * 24 * 60 * 60
+        || policy.treasury_threshold == 0
+        || policy.treasury_threshold as i128 > BASIS_POINTS
     {
         return Err(Error::InvalidLoanPolicy);
     }

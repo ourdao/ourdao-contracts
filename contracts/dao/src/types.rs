@@ -2,13 +2,6 @@ use soroban_sdk::{contracttype, Address, String};
 
 /// Basis-points denominator (100% == 10_000).
 pub const BASIS_POINTS: i128 = 10_000;
-/// Treasury withdrawals use a fixed, higher bar: 60%.
-pub const TREASURY_THRESHOLD: u32 = 6_000;
-/// A freshly filed loan proposal stays editable for this long before voting opens.
-pub const PROPOSAL_EDITING_PERIOD: u64 = 3 * 24 * 60 * 60; // 3 days
-/// Voting window length once a proposal enters the voting phase.
-pub const VOTING_PERIOD: u64 = 7 * 24 * 60 * 60; // 7 days
-
 /// Minimum length for a registered name (inclusive).
 pub const NAME_MIN_LEN: u32 = 3;
 /// Maximum length for a registered name (inclusive). Keeps the on-chain
@@ -26,6 +19,7 @@ pub enum MemberStatus {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ProposalStatus {
     Pending,
+    ApprovedPendingDisbursement,
     Approved,
     Rejected,
     Executed,
@@ -76,6 +70,9 @@ pub struct LoanPolicy {
     pub default_grace_period: u64,
     /// Basis points of the defaulting borrower's `contribution` slashed on default.
     pub default_penalty_bps: u32,
+    pub editing_period: u64,
+    pub voting_period: u64,
+    pub treasury_threshold: u32,
 }
 
 #[contracttype]
@@ -93,6 +90,8 @@ pub struct LoanProposal {
     pub status: ProposalStatus,
     pub for_votes: i128,
     pub against_votes: i128,
+    pub votes_cast: u32,
+    pub voting_period: u64,
 }
 
 #[contracttype]
@@ -121,6 +120,9 @@ pub struct TreasuryProposal {
     pub status: ProposalStatus,
     pub for_votes: i128,
     pub against_votes: i128,
+    pub votes_cast: u32,
+    pub voting_period: u64,
+    pub treasury_threshold: u32,
     /// When true, votes must be committed then revealed (commit-reveal privacy).
     pub private: bool,
 }

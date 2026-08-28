@@ -2,7 +2,7 @@ use soroban_sdk::{symbol_short, Address, Env, String};
 
 use crate::error::Error;
 use crate::storage;
-use crate::types::{ProposalStatus, TreasuryProposal, TREASURY_THRESHOLD, VOTING_PERIOD};
+use crate::types::{ProposalStatus, TreasuryProposal};
 use crate::util;
 
 pub fn propose_withdrawal(
@@ -35,6 +35,9 @@ pub fn propose_withdrawal(
         status: ProposalStatus::Pending,
         for_votes: 0,
         against_votes: 0,
+        votes_cast: 0,
+        voting_period: storage::get_policy(env).voting_period,
+        treasury_threshold: storage::get_policy(env).treasury_threshold,
         private,
     };
     storage::set_treasury_proposal(env, &proposal);
@@ -78,7 +81,7 @@ pub fn tally(
     // long after the intended voting window. Mirror the loan proposal
     // lifecycle: once VOTING_PERIOD has elapsed since creation, persist the
     // Expired status and reject further votes.
-    if env.ledger().timestamp() > proposal.created_at + VOTING_PERIOD {
+    if env.ledger().timestamp() > proposal.created_at + proposal.voting_period {
         proposal.status = ProposalStatus::Expired;
         storage::set_treasury_proposal(env, &proposal);
         return Err(Error::NotInVotingPhase);
@@ -93,16 +96,49 @@ pub fn tally(
     } else {
         proposal.against_votes += weight;
     }
+    proposal.votes_cast += 1;
     storage::set_treasury_voted(env, proposal.id, voter);
     env.events().publish(
         (symbol_short!("tre_vote"),),
         (proposal.id, voter.clone(), support),
     );
 
-    let required = util::required_votes(storage::get_active_members(env), TREASURY_THRESHOLD);
+    let required = util::required_votes(
+        storage::get_active_members(env),
+        proposal.treasury_threshold,
+    );
     if proposal.for_votes >= required {
-        execute(env, &mut proposal)?;
+        proposal.status = ProposalStatus::ApprovedPendingDisbursement;
+        storage::set_treasury_proposal(env, &proposal);
+        if execute(env, &mut proposal).is_err() {
+            env.events().publish(
+                (symbol_short!("tre_wait"),),
+                (proposal.id, proposal.amount),
+            );
+        }
+    } else {
+        let remaining = storage::get_active_members(env).saturating_sub(proposal.votes_cast);
+        let max_remaining = remaining as i128 * (1 + util::MAX_STAKE_BONUS);
+        if proposal.for_votes + max_remaining < required {
+            proposal.status = ProposalStatus::Rejected;
+            env.events().publish(
+                (symbol_short!("tre_rej"),),
+                (proposal.id, proposal.for_votes, proposal.against_votes),
+            );
+        }
     }
+    storage::set_treasury_proposal(env, &proposal);
+    Ok(())
+}
+
+pub fn execute_approved(env: &Env, proposal_id: u32) -> Result<(), Error> {
+    util::require_initialized(env)?;
+    let mut proposal = storage::get_treasury_proposal(env, proposal_id)
+        .ok_or(Error::TreasuryProposalNotFound)?;
+    if proposal.status != ProposalStatus::ApprovedPendingDisbursement {
+        return Err(Error::NotInVotingPhase);
+    }
+    execute(env, &mut proposal)?;
     storage::set_treasury_proposal(env, &proposal);
     Ok(())
 }
