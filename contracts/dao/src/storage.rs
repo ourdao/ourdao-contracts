@@ -165,6 +165,10 @@ pub fn next_id(env: &Env, key: DataKey) -> u32 {
     current
 }
 
+pub fn get_proposal_count(env: &Env, key: DataKey) -> u32 {
+    env.storage().instance().get(&key).unwrap_or(0)
+}
+
 pub fn get_total_staked(env: &Env) -> i128 {
     env.storage()
         .instance()

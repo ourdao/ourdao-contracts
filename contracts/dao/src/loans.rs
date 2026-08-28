@@ -4,7 +4,7 @@ use crate::error::Error;
 use crate::storage;
 use crate::types::{
     Loan, LoanProposal, LoanStatus, LoanTerms, MemberStatus, ProposalPhase, ProposalStatus,
-    BASIS_POINTS, PROPOSAL_EDITING_PERIOD, VOTING_PERIOD,
+    BASIS_POINTS,
 };
 use crate::util;
 
@@ -83,11 +83,13 @@ pub fn request_loan(env: &Env, borrower: Address, amount: i128) -> Result<u32, E
         duration: terms.duration,
         total_repayment: terms.total_repayment,
         created_at: now,
-        editing_period_end: now + PROPOSAL_EDITING_PERIOD,
+        editing_period_end: now + policy.editing_period,
         phase: ProposalPhase::Editing,
         status: ProposalStatus::Pending,
         for_votes: 0,
         against_votes: 0,
+        votes_cast: 0,
+        voting_period: policy.voting_period,
     };
     storage::set_loan_proposal(env, &proposal);
     storage::extend_instance(env);
@@ -141,7 +143,7 @@ pub fn refresh_phase(env: &Env, mut proposal: LoanProposal) -> LoanProposal {
         proposal.phase = ProposalPhase::Voting;
     }
     if proposal.phase == ProposalPhase::Voting
-        && now > proposal.editing_period_end + VOTING_PERIOD
+        && now > proposal.editing_period_end + proposal.voting_period
         && proposal.status == ProposalStatus::Pending
     {
         proposal.phase = ProposalPhase::Expired;
@@ -184,6 +186,7 @@ pub fn vote_on_loan_proposal(
     } else {
         proposal.against_votes += weight;
     }
+    proposal.votes_cast += 1;
     storage::set_loan_voted(env, proposal_id, &voter);
     env.events()
         .publish((symbol_short!("loan_vote"),), (proposal_id, voter, support));
@@ -193,10 +196,42 @@ pub fn vote_on_loan_proposal(
         storage::get_threshold(env),
     );
     if proposal.for_votes >= required && proposal.status == ProposalStatus::Pending {
-        proposal.status = ProposalStatus::Approved;
+        proposal.status = ProposalStatus::ApprovedPendingDisbursement;
         proposal.phase = ProposalPhase::Executed;
-        approve_and_disburse(env, &proposal)?;
+        storage::set_loan_proposal(env, &proposal);
+        if approve_and_disburse(env, &proposal).is_ok() {
+            proposal.status = ProposalStatus::Approved;
+        } else {
+            env.events().publish(
+                (symbol_short!("loan_wait"),),
+                (proposal.id, proposal.amount),
+            );
+        }
+    } else if proposal.status == ProposalStatus::Pending {
+        let remaining = storage::get_active_members(env).saturating_sub(proposal.votes_cast);
+        let max_remaining = remaining as i128 * (1 + util::MAX_STAKE_BONUS);
+        if proposal.for_votes + max_remaining < required {
+            proposal.status = ProposalStatus::Rejected;
+            proposal.phase = ProposalPhase::Expired;
+            env.events().publish(
+                (symbol_short!("loan_rej"),),
+                (proposal.id, proposal.for_votes, proposal.against_votes),
+            );
+        }
     }
+    storage::set_loan_proposal(env, &proposal);
+    Ok(())
+}
+
+pub fn disburse_approved_loan(env: &Env, proposal_id: u32) -> Result<(), Error> {
+    util::require_initialized(env)?;
+    let proposal = storage::get_loan_proposal(env, proposal_id).ok_or(Error::ProposalNotFound)?;
+    if proposal.status != ProposalStatus::ApprovedPendingDisbursement {
+        return Err(Error::NotInVotingPhase);
+    }
+    approve_and_disburse(env, &proposal)?;
+    let mut proposal = proposal;
+    proposal.status = ProposalStatus::Approved;
     storage::set_loan_proposal(env, &proposal);
     Ok(())
 }

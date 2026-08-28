@@ -126,6 +126,10 @@ impl OurDao {
         loans::vote_on_loan_proposal(&env, voter, proposal_id, support)
     }
 
+    pub fn disburse_approved_loan(env: Env, proposal_id: u32) -> Result<(), Error> {
+        loans::disburse_approved_loan(&env, proposal_id)
+    }
+
     pub fn repay_loan(env: Env, borrower: Address, loan_id: u32) -> Result<(), Error> {
         loans::repay_loan(&env, borrower, loan_id)
     }
@@ -173,6 +177,13 @@ impl OurDao {
         support: bool,
     ) -> Result<(), Error> {
         treasury::vote(&env, voter, proposal_id, support)
+    }
+
+    pub fn execute_approved_treasury_proposal(
+        env: Env,
+        proposal_id: u32,
+    ) -> Result<(), Error> {
+        treasury::execute_approved(&env, proposal_id)
     }
 
     // ==================== native swap: staking ====================
@@ -252,6 +263,14 @@ impl OurDao {
 
     pub fn get_treasury_proposal(env: Env, proposal_id: u32) -> Option<TreasuryProposal> {
         storage::get_treasury_proposal(&env, proposal_id)
+    }
+
+    pub fn get_loan_proposal_count(env: Env) -> u32 {
+        storage::get_proposal_count(&env, storage::DataKey::NextProposalId)
+    }
+
+    pub fn get_treasury_proposal_count(env: Env) -> u32 {
+        storage::get_proposal_count(&env, storage::DataKey::NextTreasuryId)
     }
 
     pub fn get_loan_policy(env: Env) -> LoanPolicy {
