@@ -6,8 +6,11 @@ use soroban_sdk::{symbol_short, Address, Env, String};
 use crate::error::Error;
 use crate::storage::{self, DataKey};
 use crate::types::{NAME_MAX_LEN, NAME_MIN_LEN};
+use crate::util;
 
 pub fn register_name(env: &Env, owner: Address, name: String) -> Result<(), Error> {
+    util::require_initialized(env)?;
+    util::require_not_paused(env)?;
     util_owner_auth(&owner);
 
     // Validate length bounds.

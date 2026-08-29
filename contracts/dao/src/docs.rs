@@ -35,6 +35,7 @@ pub fn attach_document(
     content_hash: Bytes,
 ) -> Result<(), Error> {
     util::require_initialized(env)?;
+    util::require_not_paused(env)?;
     util::require_active_member(env, &caller)?;
     if !proposal_exists(env, &kind, proposal_id) {
         return Err(Error::ProposalNotFound);

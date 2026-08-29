@@ -179,7 +179,7 @@ impl OurDao {
         treasury::vote(&env, voter, proposal_id, support)
     }
 
-    pub fn execute_approved_treasury_proposal(
+    pub fn execute_treasury_proposal(
         env: Env,
         proposal_id: u32,
     ) -> Result<(), Error> {

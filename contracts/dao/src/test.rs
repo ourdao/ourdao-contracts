@@ -6,13 +6,14 @@ use soroban_sdk::{token, Address, Bytes, BytesN, Env, String, Vec};
 use crate::privacy::compute_commitment;
 use crate::storage::ProposalKind;
 use crate::types::{
-    LoanPolicy, LoanStatus, MemberStatus, ProposalPhase, ProposalStatus, VOTING_PERIOD,
+    LoanPolicy, LoanStatus, MemberStatus, ProposalPhase, ProposalStatus,
 };
 use crate::{Error, OurDao, OurDaoClient};
 
 const FEE: i128 = 1_000;
 const MINT: i128 = 1_000_000;
 const EDITING: u64 = 3 * 24 * 60 * 60;
+const VOTING_PERIOD: u64 = 3 * 24 * 60 * 60;
 const LOAN_DURATION: u64 = 30 * 24 * 60 * 60;
 
 struct Setup<'a> {
@@ -34,6 +35,9 @@ fn policy() -> LoanPolicy {
         max_loan_to_treasury_ratio: 5_000, // 50%
         default_grace_period: 0,
         default_penalty_bps: 2_000, // 20%
+        editing_period: EDITING,
+        voting_period: VOTING_PERIOD,
+        treasury_threshold: 5_100, // 51%
     }
 }
 
