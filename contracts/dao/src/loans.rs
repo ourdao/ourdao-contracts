@@ -107,6 +107,8 @@ pub fn edit_loan_proposal(
     proposal_id: u32,
     new_amount: i128,
 ) -> Result<(), Error> {
+    util::require_initialized(env)?;
+    util::require_not_paused(env)?;
     util::require_active_member(env, &borrower)?;
     let mut proposal =
         storage::get_loan_proposal(env, proposal_id).ok_or(Error::ProposalNotFound)?;
@@ -173,7 +175,7 @@ pub fn vote_on_loan_proposal(
         return Err(Error::VotingEnded);
     }
     let now = env.ledger().timestamp();
-    if now > proposal.editing_period_end + VOTING_PERIOD {
+    if now > proposal.editing_period_end + proposal.voting_period {
         return Err(Error::VotingEnded);
     }
     if storage::has_loan_voted(env, proposal_id, &voter) {
@@ -225,6 +227,7 @@ pub fn vote_on_loan_proposal(
 
 pub fn disburse_approved_loan(env: &Env, proposal_id: u32) -> Result<(), Error> {
     util::require_initialized(env)?;
+    util::require_not_paused(env)?;
     let proposal = storage::get_loan_proposal(env, proposal_id).ok_or(Error::ProposalNotFound)?;
     if proposal.status != ProposalStatus::ApprovedPendingDisbursement {
         return Err(Error::NotInVotingPhase);
@@ -371,6 +374,7 @@ fn repay_loan_internal(
 /// double event).
 pub fn expire_loan_proposal(env: &Env, proposal_id: u32) -> Result<(), Error> {
     util::require_initialized(env)?;
+    util::require_not_paused(env)?;
     let mut proposal =
         storage::get_loan_proposal(env, proposal_id).ok_or(Error::ProposalNotFound)?;
     proposal = refresh_phase(env, proposal);
@@ -408,6 +412,7 @@ pub fn expire_loan_proposal(env: &Env, proposal_id: u32) -> Result<(), Error> {
 /// `Repaid`, `Defaulted` is terminal — a defaulted loan can't later be repaid.
 pub fn mark_loan_defaulted(env: &Env, loan_id: u32) -> Result<(), Error> {
     util::require_initialized(env)?;
+    util::require_not_paused(env)?;
     let mut loan = storage::get_loan(env, loan_id).ok_or(Error::LoanNotFound)?;
     if loan.status != LoanStatus::Active {
         return Err(Error::LoanNotActive);

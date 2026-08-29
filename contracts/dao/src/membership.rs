@@ -53,6 +53,7 @@ pub fn register_member(env: &Env, member: Address) -> Result<(), Error> {
 
 pub fn exit_dao(env: &Env, member: Address) -> Result<(), Error> {
     util::require_initialized(env)?;
+    util::require_not_paused(env)?;
     let mut record = util::require_active_member(env, &member)?;
     if record.has_active_loan {
         return Err(Error::HasActiveLoan);
@@ -87,6 +88,7 @@ pub fn exit_dao(env: &Env, member: Address) -> Result<(), Error> {
 
 pub fn claim_rewards(env: &Env, member: Address) -> Result<i128, Error> {
     util::require_initialized(env)?;
+    util::require_not_paused(env)?;
     util::require_active_member(env, &member)?;
     let pending = compute_pending_yield(env, &member);
     if pending <= 0 {

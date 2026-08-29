@@ -133,6 +133,7 @@ pub fn tally(
 
 pub fn execute_approved(env: &Env, proposal_id: u32) -> Result<(), Error> {
     util::require_initialized(env)?;
+    util::require_not_paused(env)?;
     let mut proposal = storage::get_treasury_proposal(env, proposal_id)
         .ok_or(Error::TreasuryProposalNotFound)?;
     if proposal.status != ProposalStatus::ApprovedPendingDisbursement {
