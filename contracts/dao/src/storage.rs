@@ -51,6 +51,7 @@ pub enum DataKey {
     Name(String),
     NameOf(Address),
     Commit(u32, Address),
+    TotalContributions,
 }
 
 pub fn extend_instance(env: &Env) {
@@ -145,6 +146,19 @@ pub fn get_total_members(env: &Env) -> u32 {
 
 pub fn set_total_members(env: &Env, n: u32) {
     env.storage().instance().set(&DataKey::TotalMembers, &n);
+}
+
+pub fn get_total_contributions(env: &Env) -> i128 {
+    env.storage()
+        .instance()
+        .get(&DataKey::TotalContributions)
+        .unwrap_or(0)
+}
+
+pub fn set_total_contributions(env: &Env, amount: i128) {
+    env.storage()
+        .instance()
+        .set(&DataKey::TotalContributions, &amount);
 }
 
 pub fn get_active_members(env: &Env) -> u32 {
