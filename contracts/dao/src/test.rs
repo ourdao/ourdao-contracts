@@ -908,6 +908,92 @@ fn mixed_joins_exits_defaults_never_strand_value() {
     assert!(sum <= s.client.get_treasury_balance());
 }
 
+// ==================== issue #10: edit_loan_proposal bypasses ratio cap ====================
+
+#[test]
+fn edit_loan_proposal_above_cap_rejected() {
+    let s = setup(3); // treasury = 3000, max ratio 50% => max loan 1500
+    let borrower = s.members.get(0).unwrap();
+
+    // Request a small, compliant loan.
+    let pid = s.client.request_loan(&borrower, &1);
+
+    // Editing above the cap must be rejected.
+    let res = s.client.try_edit_loan_proposal(&borrower, &pid, &2_000);
+    assert_eq!(res, Err(Ok(Error::ExceedsTreasuryRatio)));
+
+    // The proposal is unchanged.
+    let prop = s.client.get_loan_proposal(&pid).unwrap();
+    assert_eq!(prop.amount, 1);
+}
+
+#[test]
+fn edit_loan_proposal_at_exact_cap_succeeds() {
+    let s = setup(3); // treasury = 3000, max ratio 50% => max loan 1500
+    let borrower = s.members.get(0).unwrap();
+
+    let pid = s.client.request_loan(&borrower, &1);
+
+    // Editing to exactly the cap succeeds.
+    s.client.edit_loan_proposal(&borrower, &pid, &1_500);
+    let prop = s.client.get_loan_proposal(&pid).unwrap();
+    assert_eq!(prop.amount, 1_500);
+}
+
+#[test]
+fn edit_loan_proposal_fails_when_paused() {
+    let s = setup(3);
+    let borrower = s.members.get(0).unwrap();
+    let pid = s.client.request_loan(&borrower, &1);
+
+    s.client.pause();
+    let res = s.client.try_edit_loan_proposal(&borrower, &pid, &500);
+    assert_eq!(res, Err(Ok(Error::Paused)));
+}
+
+#[test]
+fn edit_loan_proposal_fails_when_uninitialized() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(OurDao, ());
+    let client = OurDaoClient::new(&env, &contract_id);
+    let borrower = Address::generate(&env);
+
+    let res = client.try_edit_loan_proposal(&borrower, &0, &500);
+    assert_eq!(res, Err(Ok(Error::NotInitialized)));
+}
+
+#[test]
+fn proposal_non_compliant_at_approval_does_not_disburse() {
+    let s = setup(4); // treasury = 4000, max ratio 50% => max loan 2000
+    let borrower = s.members.get(0).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let v2 = s.members.get(2).unwrap();
+    let v3 = s.members.get(3).unwrap();
+
+    // Request a compliant loan at the cap.
+    let pid = s.client.request_loan(&borrower, &2_000);
+    advance(&s.env, EDITING + 1);
+
+    // Treasury shrinks before approval (a member exits), so the proposal is
+    // no longer within the ratio cap at disbursement time.
+    s.client.exit_dao(&v3);
+    // treasury = 3000, max ratio 50% => max loan 1500 < 2000
+
+    // Voting reaches the consensus threshold (2 of 3 active members) but
+    // disbursement must be blocked.
+    s.client.vote_on_loan_proposal(&v1, &pid, &true);
+    s.client.vote_on_loan_proposal(&v2, &pid, &true);
+
+    let prop = s.client.get_loan_proposal(&pid).unwrap();
+    assert_eq!(prop.status, ProposalStatus::ApprovedPendingDisbursement);
+
+    // The loan was not created and the borrower got nothing.
+    let res = s.client.try_get_loan(&pid);
+    assert_eq!(res, Err(Ok(Error::LoanNotFound)));
+    assert_eq!(s.token.balance(&borrower), MINT);
+}
+
 // ==================== issue #7: property tests ====================
 //
 // Example tests above pin down behavior at specific, hand-picked numbers.
