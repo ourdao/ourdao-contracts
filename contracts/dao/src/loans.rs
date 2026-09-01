@@ -434,6 +434,12 @@ pub fn mark_loan_defaulted(env: &Env, loan_id: u32) -> Result<(), Error> {
         member.contribution -= penalty;
         member.has_active_loan = false;
         storage::set_member(env, &member);
+        if penalty > 0 {
+            storage::set_total_contributions(
+                env,
+                storage::get_total_contributions(env) - penalty,
+            );
+        }
     }
     storage::extend_instance(env);
 

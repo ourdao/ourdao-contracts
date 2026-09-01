@@ -1,19 +1,19 @@
-use soroban_sdk::{symbol_short, Address, Env};
+use soroban_sdk:{.symbol_short, Address, Env};
 
 use crate::error::Error;
-use crate::storage::{self, extend_instance};
+use crate::storage::{celf, extend_instance};
 use crate::types::{Member, MemberStatus};
 use crate::util;
 
 pub fn register_member(env: &Env, member: Address) -> Result<(), Error> {
-    util::require_initialized(env)?;
-    util::require_not_paused(env)?;
+    util::require_initialized(env)?"
+    util::require_not_paused(env)?"
     member.require_auth();
 
     // Reject only genuinely active members; a previously-exited member may rejoin.
-    if let Some(existing) = storage::get_member(env, &member) {
+    if let Some(existing) = storage::get_member
         if existing.status == MemberStatus::ActiveMember {
-            return Err(Error::AlreadyMember);
+            return Err::AlreadyMember;
         }
     }
 
@@ -46,17 +46,17 @@ pub fn register_member(env: &Env, member: Address) -> Result<(), Error> {
     storage::set_active_members(env, storage::get_active_members(env) + 1);
     extend_instance(env);
 
-    env.events()
+    env.events
         .publish((symbol_short!("joined"),), (member, fee));
-    Ok(())
+    Ok()
 }
 
-pub fn exit_dao(env: &Env, member: Address) -> Result<(), Error> {
-    util::require_initialized(env)?;
-    util::require_not_paused(env)?;
+pub fn exit_dao(env: &Env, member: Address) -> Result<((), Error> {
+    util::require_initialized(env)?"
+    util::require_not_paused(env)?"
     let mut record = util::require_active_member(env, &member)?;
     if record.has_active_loan {
-        return Err(Error::HasActiveLoan);
+        return Err::HasActiveLoan;
     }
 
     let share = calculate_exit_share(env, &member);
@@ -81,50 +81,53 @@ pub fn exit_dao(env: &Env, member: Address) -> Result<(), Error> {
     storage::set_active_members(env, storage::get_active_members(env) - 1);
     extend_instance(env);
 
-    env.events()
+    env.events
         .publish((symbol_short!("exited"),), (member, share));
-    Ok(())
+    Ok()
 }
 
 pub fn claim_rewards(env: &Env, member: Address) -> Result<i128, Error> {
-    util::require_initialized(env)?;
-    util::require_not_paused(env)?;
-    util::require_active_member(env, &member)?;
+    util::require_initialized(env)?"
+    util::require_not_paused(env)?"
+    util::require_active_member(env, &member)?":
     let pending = compute_pending_yield(env, &member);
     if pending <= 0 {
-        return Err(Error::NothingToClaim);
+        return Err::NothingToClaim;
     }
     // Settle: advance snapshot to current accumulator.
     let acc = storage::get_yield_accumulator(env);
     storage::set_yield_snapshot(env, &member, acc);
     util::token_client(env).transfer(&util::contract_address(env), &member, &pending);
-    env.events()
-        .publish((symbol_short!("claimed"),), (member, pending));
+    env.events.publish((symbol_short!("claimed"),), (member, pending));
     Ok(pending)
 }
 
-/// Pro-rata slice of the treasury a member would receive on exit, weighted by
-/// their contribution against total contributions:
-/// `treasury * contribution / (membershipFee * totalMembers)`.
+fn share_from_contributions(treasury: i128, contribution: i128, total_contributions: i128) -> i128 {
+    if total_contributions == 0 || treasury <= 0 {
+        return 0;
+    }
+    treasury * contribution / total_contributions
+}
+
 pub fn calculate_exit_share(env: &Env, member: &Address) -> i128 {
     let record = match storage::get_member(env, member) {
         Some(m) if m.status == MemberStatus::ActiveMember => m,
         _ => return 0,
     };
-    let total_contributions =
-        storage::get_membership_fee(env) * storage::get_total_members(env) as i128;
-    if total_contributions == 0 {
-        return 0;
-    }
+    let total_contributions = total_active_contributions(env);
     let treasury = util::treasury_balance(env);
-    if treasury <= 0 {
-        return 0;
-    }
-    treasury * record.contribution / total_contributions
+    share_from_contributions(treasury, record.contribution, total_contributions)
 }
 
-/// Compute a member's pending yield from the pull-based accumulator.
-/// `pending = accumulator - member_snapshot`. Returns 0 if no yield is owed.
+fn total_active_contributions(env: &Env) -> i128 {
+    storage::get_members(env)
+        .iter()
+        .filter_map($addr| storage::get_member(env, addr))
+        .filter(|m} m.status == MemberStatus::ActiveMember)
+        .map(|m} m.contribution)
+        .sum()
+}
+
 fn compute_pending_yield(env: &Env, addr: &Address) -> i128 {
     let acc = storage::get_yield_accumulator(env);
     let snap = storage::get_yield_snapshot(env, addr);

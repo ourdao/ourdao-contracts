@@ -835,6 +835,79 @@ fn exit_blocked_while_partial_balance_remains() {
     assert!(!s.client.is_member(&borrower));
 }
 
+// ==================== issue: total_contributions ====================
+
+#[test]
+fn ten_join_five_exit_pays_remaining_members_full_share() {
+    let s = setup(10);
+
+    for i in 0..5u32 {
+        let m = s.members.get(i).unwrap();
+        assert_eq!(s.client.calculate_exit_share(&m), FEE);
+        s.client.exit_dao(&m);
+    }
+
+    assert_eq!(s.client.get_total_members(), 10);
+    assert_eq!(s.client.get_active_members(), 5);
+    assert_eq!(s.client.get_treasury_balance(), 5 * FEE);
+
+    for i in 5..10u32 {
+        let m = s.members.get(i).unwrap();
+        assert_eq!(s.client.calculate_exit_share(&m), FEE);
+    }
+}
+
+#[test]
+fn rejoin_after_exit_is_counted_once_not_twice() {
+    let s = setup(3);
+    let m = s.members.get(0).unwrap();
+
+    s.client.exit_dao(&m);
+    assert_eq!(s.client.get_active_members(), 2);
+
+    s.client.register_member(&m);
+    assert_eq!(s.client.get_total_members(), 4);
+    assert_eq!(s.client.get_active_members(), 3);
+    assert_eq!(s.client.calculate_exit_share(&m), FEE);
+}
+
+#[test]
+fn mixed_joins_exits_defaults_never_strand_value() {
+    let s = setup(3);
+    let a = s.members.get(0).unwrap();
+    let b = s.members.get(1).unwrap();
+    let c = s.members.get(2).unwrap();
+
+    let pid = s.client.request_loan(&a, &500);
+    advance(&s.env, EDITING + 1);
+    s.client.vote_on_loan_proposal(&b, &pid, &true);
+    s.client.vote_on_loan_proposal(&c, &pid, &true);
+
+    s.client.exit_dao(&c);
+    let b_share_before_default = s.client.calculate_exit_share(&b);
+
+    advance(&s.env, LOAN_DURATION + 1);
+    s.client.mark_loan_defaulted(&pid);
+
+    let b_share_after_default = s.client.calculate_exit_share(&b);
+    assert!(b_share_after_default > b_share_before_default);
+
+    s.client.exit_dao(&b);
+    s.client.register_member(&c);
+
+    assert_eq!(s.client.get_total_members(), 4);
+    assert_eq!(s.client.get_active_members(), 2);
+
+    let mut sum = 0i128;
+    for i in 0..3u32 {
+        let m = s.members.get(i).unwrap();
+        if s.client.is_member(&m) {
+            sum += s.client.calculate_exit_share(&m);
+        }
+    }
+    assert!(sum <= s.client.get_treasury_balance());
+}
+
 // ==================== issue #7: property tests ====================
 //
 // Example tests above pin down behavior at specific, hand-picked numbers.
