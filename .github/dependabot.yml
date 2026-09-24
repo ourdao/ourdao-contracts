@@ -1,0 +1,26 @@
+version: 2
+updates:
+  # GitHub Actions — group routine bumps into one PR
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # Cargo — group routine bumps together.
+  # soroban-sdk is excluded from the group so every bump (including majors)
+  # arrives as its own PR for individual review (protocol compatibility).
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      cargo-dependencies:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "soroban-sdk"
+    open-pull-requests-limit: 10
