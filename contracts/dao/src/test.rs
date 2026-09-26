@@ -908,6 +908,117 @@ fn mixed_joins_exits_defaults_never_strand_value() {
     assert!(sum <= s.client.get_treasury_balance());
 }
 
+// ==================== issue #10: edit_loan_proposal bypasses ratio cap ====================
+//
+// `max_loan_to_treasury_ratio` (50% in `policy()`) must bind a loan's amount
+// everywhere the borrower can still influence it, and again at the moment the
+// tokens actually move. `setup(n)` leaves a treasury of `n * FEE`, so
+// `setup(3)` caps a single loan at 1_500 and `setup(4)` at 2_000.
+
+/// The bypass from the issue, step by step: file a compliant loan, then edit
+/// it up to the whole treasury during the editing window.
+#[test]
+fn issue10_edit_above_ratio_cap_is_rejected() {
+    let s = setup(3); // treasury 3_000, cap 1_500
+    let borrower = s.members.get(0).unwrap();
+
+    let pid = s.client.request_loan(&borrower, &100);
+    assert_eq!(s.client.get_treasury_balance(), 3 * FEE);
+
+    let res = s.client.try_edit_loan_proposal(&borrower, &pid, &3_000);
+    assert_eq!(res, Err(Ok(Error::ExceedsTreasuryRatio)));
+
+    // One token above the cap is still above the cap.
+    let res = s.client.try_edit_loan_proposal(&borrower, &pid, &1_501);
+    assert_eq!(res, Err(Ok(Error::ExceedsTreasuryRatio)));
+
+    // The rejected edits leave the proposal — and its quoted terms — untouched.
+    let prop = s.client.get_loan_proposal(&pid).unwrap();
+    assert_eq!(prop.amount, 100);
+    assert_eq!(
+        prop.total_repayment,
+        s.client.calculate_loan_terms(&100).total_repayment
+    );
+}
+
+/// Exactly at the cap is inside policy, so the edit goes through and the
+/// proposal's terms are recomputed for the new amount.
+#[test]
+fn issue10_edit_to_exact_ratio_cap_succeeds() {
+    let s = setup(3); // treasury 3_000, cap 1_500
+    let borrower = s.members.get(0).unwrap();
+    let pid = s.client.request_loan(&borrower, &100);
+
+    s.client.edit_loan_proposal(&borrower, &pid, &1_500);
+
+    let prop = s.client.get_loan_proposal(&pid).unwrap();
+    assert_eq!(prop.amount, 1_500);
+    let terms = s.client.calculate_loan_terms(&1_500);
+    assert_eq!(prop.interest_rate, terms.interest_rate);
+    assert_eq!(prop.total_repayment, terms.total_repayment);
+}
+
+#[test]
+fn issue10_edit_is_rejected_while_paused() {
+    let s = setup(3);
+    let borrower = s.members.get(0).unwrap();
+    let pid = s.client.request_loan(&borrower, &100);
+
+    s.client.pause(&s.admin);
+    let res = s.client.try_edit_loan_proposal(&borrower, &pid, &200);
+    assert_eq!(res, Err(Ok(Error::Paused)));
+}
+
+#[test]
+fn issue10_edit_is_rejected_before_initialize() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(OurDao, ());
+    let client = OurDaoClient::new(&env, &contract_id);
+    let borrower = Address::generate(&env);
+
+    let res = client.try_edit_loan_proposal(&borrower, &0, &200);
+    assert_eq!(res, Err(Ok(Error::NotInitialized)));
+}
+
+/// A proposal that is compliant when it is filed can stop being compliant
+/// before it pays out: a member leaving takes their share of the treasury with
+/// them. The check at disbursement is what stops the DAO paying out a loan the
+/// ratio cap no longer allows — `treasury >= amount` alone would not.
+#[test]
+fn issue10_disbursement_rejected_when_treasury_shrinks_below_cap() {
+    let s = setup(4); // treasury 4_000, cap 2_000
+    let borrower = s.members.get(0).unwrap();
+    let leaver = s.members.get(3).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let v2 = s.members.get(2).unwrap();
+
+    // Compliant when filed: 2_000 is exactly the cap on a 4_000 treasury.
+    let pid = s.client.request_loan(&borrower, &2_000);
+
+    // The treasury shrinks to 3_000 — cap 1_500 — before the vote closes.
+    s.client.exit_dao(&leaver);
+    assert_eq!(s.client.get_treasury_balance(), 3 * FEE);
+
+    advance(&s.env, EDITING + 1);
+    s.client.vote_on_loan_proposal(&v1, &pid, &true);
+    s.client.vote_on_loan_proposal(&v2, &pid, &true);
+
+    // Consensus was reached, but nothing was paid out: the proposal is left
+    // waiting for disbursement instead of being marked approved.
+    let prop = s.client.get_loan_proposal(&pid).unwrap();
+    assert_eq!(prop.status, ProposalStatus::ApprovedPendingDisbursement);
+    assert!(s.client.get_loan(&pid).is_none());
+    assert!(!s.client.get_member(&borrower).unwrap().has_active_loan);
+    assert_eq!(s.client.get_treasury_balance(), 3 * FEE);
+
+    // The retry entrypoint re-runs the same check rather than paying out the
+    // 2_000 that the old `treasury >= amount` guard would have allowed.
+    let res = s.client.try_disburse_approved_loan(&pid);
+    assert_eq!(res, Err(Ok(Error::ExceedsTreasuryRatio)));
+    assert!(s.client.get_loan(&pid).is_none());
+}
+
 // ==================== issue #7: property tests ====================
 //
 // Example tests above pin down behavior at specific, hand-picked numbers.
