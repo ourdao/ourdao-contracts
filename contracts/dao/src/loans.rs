@@ -32,6 +32,21 @@ pub fn calculate_loan_terms(env: &Env, amount: i128) -> LoanTerms {
     }
 }
 
+/// Enforce the `max_loan_to_treasury_ratio` cap: a single loan may not exceed
+/// `treasury * ratio / BASIS_POINTS`. Shared by `request_loan`,
+/// `edit_loan_proposal`, and `approve_and_disburse` so the cap cannot be
+/// bypassed by editing a proposal or by the treasury shrinking between
+/// filing and disbursement.
+fn check_treasury_ratio(env: &Env, amount: i128) -> Result<(), Error> {
+    let policy = storage::get_policy(env);
+    let treasury = util::treasury_balance(env);
+    let max_loan = treasury * policy.max_loan_to_treasury_ratio as i128 / BASIS_POINTS;
+    if amount > max_loan {
+        return Err(Error::ExceedsTreasuryRatio);
+    }
+    Ok(())
+}
+
 pub fn is_eligible_for_loan(env: &Env, member: &Address) -> bool {
     let record = match storage::get_member(env, member) {
         Some(m) if m.status == MemberStatus::ActiveMember => m,
@@ -65,12 +80,7 @@ pub fn request_loan(env: &Env, borrower: Address, amount: i128) -> Result<u32, E
         return Err(Error::NotEligibleForLoan);
     }
 
-    let policy = storage::get_policy(env);
-    let treasury = util::treasury_balance(env);
-    let max_loan = treasury * policy.max_loan_to_treasury_ratio as i128 / BASIS_POINTS;
-    if amount > max_loan {
-        return Err(Error::ExceedsTreasuryRatio);
-    }
+    check_treasury_ratio(env, amount)?;
 
     let terms = calculate_loan_terms(env, amount);
     let now = env.ledger().timestamp();
@@ -122,6 +132,7 @@ pub fn edit_loan_proposal(
     if new_amount <= 0 {
         return Err(Error::InvalidAmount);
     }
+    check_treasury_ratio(env, new_amount)?;
 
     let terms = calculate_loan_terms(env, new_amount);
     proposal.amount = new_amount;
@@ -240,6 +251,12 @@ pub fn disburse_approved_loan(env: &Env, proposal_id: u32) -> Result<(), Error> 
 }
 
 fn approve_and_disburse(env: &Env, proposal: &LoanProposal) -> Result<(), Error> {
+    // Re-check the treasury-ratio cap at disbursement time: the treasury can
+    // shrink between filing and approval, so a proposal that was compliant
+    // when filed may not be when it pays out. Rejecting is safer and simpler
+    // than clamping the payout — clamping would silently hand the borrower a
+    // different amount than the membership voted on.
+    check_treasury_ratio(env, proposal.amount)?;
     if util::treasury_balance(env) < proposal.amount {
         return Err(Error::InsufficientTreasury);
     }
