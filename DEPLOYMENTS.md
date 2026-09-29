@@ -1,64 +1,51 @@
-# OurDAO Contract Deployments
+# Deployment Guide
 
-This document tracks the OurDAO DAO contract deployments across networks. Each deployment is linked to a specific GitHub release.
+## Prerequisites
+- Docker
+- Rust toolchain
+- Soroban CLI
 
-## Network Deployments
+## Reproducible Build Verification
 
-### Stellar Testnet
+To ensure the WASM bytecode matches the source code exactly:
 
-| Release | Contract ID | Status | Deployed |
-|---------|---|---|---|
-| Latest | TBD | Preparing | - |
-
-### Stellar Public Network
-
-| Release | Contract ID | Status | Deployed |
-|---------|---|---|---|
-| Latest | TBD | Not yet deployed | - |
-
-## Verification
-
-To verify a deployed contract matches a GitHub release:
-
-1. **Find the release** — Go to [Releases](https://github.com/ourdao/ourdao-contracts/releases) and select the version.
-
-2. **Download the wasm** — Each release includes `ourdao_dao.optimized.wasm`.
-
-3. **Verify the checksum** — Compare the SHA-256 hash in the release notes against your copy:
+1. **Local Verification**
    ```bash
-   sha256sum ourdao_dao.optimized.wasm
+   chmod +x ./scripts/build-reproducible.sh
+   ./scripts/build-reproducible.sh
+   ```
+   This generates:
+   - WASM file in `target/wasm32-unknown-unknown/release/`
+   - SHA-256 hash file with `.sha256` extension
+
+2. **CI Verification**
+   The GitHub Actions workflow `.github/workflows/reproducible-build.yml` automatically:
+   - Builds the contract in the official Soroban container
+   - Compares the SHA-256 hash against the stored hash (on main branch)
+   - Fails if hashes don't match
+
+3. **Audit Verification**
+   To verify a deployment:
+   ```bash
+   # Generate local hash
+   ./scripts/build-reproducible.sh > local_hash.txt
+   
+   # Compare with on-chain or published hash
+   diff local_hash.txt <published_hash_file>
    ```
 
-4. **Confirm the contract ID** — Query the network for the contract you deployed:
+## Deployment Steps
+1. Build the contract:
    ```bash
-   stellar contract info --id <CONTRACT_ID> --network testnet
+   ./scripts/build-reproducible.sh
    ```
-
-## Deployment Process
-
-To deploy a new release:
-
-1. **Check the release** — Open the [latest release](https://github.com/ourdao/ourdao-contracts/releases) and verify the checksum.
-
-2. **Download or build locally** — Either download the wasm from the release, or build it yourself:
+2. Verify the hash matches expectations
+3. Deploy using Soroban CLI:
    ```bash
-   git checkout v<VERSION>
-   stellar contract build --optimize
+   soroban contract deploy --wasm target/wasm32-unknown-unknown/release/ourdao_contract.wasm
    ```
-
-3. **Deploy** — Use the deployment script (for testnet) or a key-holding CI job (for production):
-   ```bash
-   ./scripts/deploy-testnet.sh
-   ```
-
-4. **Record the contract ID** — Update this file with the new deployment, including the release version and timestamp.
-
-## Release History
-
-- **v1.0.0** (not yet released) — Initial release candidate
 
 ## Notes
-
-- Each release produces a reproducible, verifiable wasm artifact with a documented SHA-256.
-- Contract IDs are recorded per network to enable members to verify they have the correct code.
-- There is currently no upgrade path; a new deployment is a fresh contract with a new ID.
+- Always verify the WASM hash before deployment
+- The reproducible build ensures bytecode matches source exactly
+- Critical for security audits and on-chain verification

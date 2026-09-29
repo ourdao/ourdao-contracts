@@ -1,0 +1,40 @@
+name: Reproducible Build Verification
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  verify-reproducible-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker
+        uses: docker/setup-qemu-action@v3
+
+      - name: Run reproducible build
+        run: |
+          chmod +x ./scripts/build-reproducible.sh
+          ./scripts/build-reproducible.sh > build_hash.txt
+
+      - name: Compare hashes
+        run: |
+          # Get the hash from the current build
+          CURRENT_HASH=$(cat build_hash.txt)
+          
+          # For main branch, compare against stored hash (if exists)
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            if [ -f "target/wasm32-unknown-unknown/release/ourdao_contract.wasm.sha256" ]; then
+              STORED_HASH=$(cat target/wasm32-unknown-unknown/release/ourdao_contract.wasm.sha256)
+              if [ "$CURRENT_HASH" != "$STORED_HASH" ]; then
+                echo "Hash mismatch! Current: $CURRENT_HASH, Stored: $STORED_HASH"
+                exit 1
+              fi
+            fi
+          fi
+          
+          echo "Build verification successful. Hash: $CURRENT_HASH"
