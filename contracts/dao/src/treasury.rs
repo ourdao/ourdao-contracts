@@ -13,6 +13,7 @@ pub fn propose_withdrawal(
     env: &Env,
     proposer: Address,
     amount: i128,
+    asset: Address,
     destination: Address,
     reason: String,
     private: bool,
@@ -38,6 +39,7 @@ pub fn propose_withdrawal(
         id,
         proposer,
         amount,
+        asset: asset.clone(),
         destination: destination.clone(),
         reason,
         created_at: env.ledger().timestamp(),
@@ -54,7 +56,7 @@ pub fn propose_withdrawal(
 
     env.events().publish(
         (symbol_short!("tre_prop"),),
-        (id, amount, destination, private),
+        (id, amount, asset, destination, private),
     );
     Ok(id)
 }
@@ -152,18 +154,18 @@ pub fn execute_approved(env: &Env, proposal_id: u32) -> Result<(), Error> {
 
 #[allow(deprecated)]
 fn execute(env: &Env, proposal: &mut TreasuryProposal) -> Result<(), Error> {
-    if util::treasury_balance(env) < proposal.amount {
+    if util::treasury_balance_for(env, &proposal.asset) < proposal.amount {
         return Err(Error::InsufficientTreasury);
     }
     proposal.status = ProposalStatus::Executed;
-    util::token_client(env).transfer(
+    util::token_client_for(env, &proposal.asset).transfer(
         &util::contract_address(env),
         &proposal.destination,
         &proposal.amount,
     );
     env.events().publish(
         (symbol_short!("tre_exec"),),
-        (proposal.id, proposal.amount, proposal.destination.clone()),
+        (proposal.id, proposal.amount, proposal.asset.clone(), proposal.destination.clone()),
     );
     Ok(())
 }
@@ -223,4 +225,35 @@ pub fn expire_treasury_proposal(env: &Env, proposal_id: u32) -> Result<(), Error
     } else {
         Err(Error::NotInVotingPhase) // Re-using error
     }
+}
+
+/// Propose adding a new asset to the treasury token whitelist.
+pub fn propose_token(
+    env: &Env,
+    proposer: Address,
+    asset: Address,
+) -> Result<(), Error> {
+    util::require_initialized(env)?;
+    util::require_not_paused(env)?;
+    util::require_admin(env, &proposer)?;
+
+    if storage::is_token_whitelisted(env, &asset) {
+        return Err(Error::AlreadyWhitelisted);
+    }
+    storage::set_token_whitelisted(env, &asset, true);
+    storage::extend_instance(env);
+    env.events()
+        .publish((symbol_short!("tok_add"),), (asset,));
+    Ok(())
+}
+
+/// Remove an asset from the treasury token whitelist.
+pub fn remove_token(env: &Env, admin: Address, asset: Address) -> Result<(), Error> {
+    util::require_initialized(env)?;
+    util::require_not_paused(env)?;
+    util::require_admin(env, &admin)?;
+    storage::set_token_whitelisted(env, &asset, false);
+    env.events()
+        .publish((symbol_short!("tok_rem"),), (asset,));
+    Ok(())
 }

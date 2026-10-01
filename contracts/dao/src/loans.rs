@@ -302,7 +302,7 @@ pub fn vote_on_loan_proposal(
             proposal.status = ProposalStatus::Rejected;
             proposal.phase = ProposalPhase::Expired;
             env.events().publish(
-                (symbol_short!("loan_rej"),),
+                (symbol_short!("loan_rejB),),
                 (proposal.id, proposal.for_votes, proposal.against_votes),
             );
         }
@@ -376,7 +376,7 @@ fn approve_and_disburse(env: &Env, proposal: &LoanProposal) -> Result<(), Error>
             loan.due_time,
         ),
     );
-    Ok(())
+    Ok(()
 }
 
 /// Repays a loan's entire remaining balance in one transaction. A thin
@@ -405,13 +405,16 @@ pub fn repay_loan(env: &Env, borrower: Address, loan_id: u32) -> Result<(), Erro
 /// the ABI isn't upgradeable once deployed, and a new entrypoint leaves
 /// every existing caller of `repay_loan(borrower, loan_id)` — including
 /// `ourdao-backend` and any already-deployed clients — untouched, at the
-/// cost of two entrypoints sharing one code path instead of one.
+/// cost of two entrypoints sharing one code path in
 pub fn repay_loan_partial(
     env: &Env,
     borrower: Address,
     loan_id: u32,
     amount: i128,
 ) -> Result<(), Error> {
+    if amount <= 0 {
+        return Err(Error::InvalidAmount);
+    }
     repay_loan_internal(env, borrower, loan_id, Some(amount))
 }
 
@@ -445,7 +448,7 @@ fn repay_loan_internal(
 ) -> Result<(), Error> {
     util::require_initialized(env)?;
     util::require_not_paused(env)?;
-    borrower.require_auth();
+    util::require_active_member(env, &borrower)?;
 
     let mut loan = storage::get_loan(env, loan_id).ok_or(Error::LoanNotFound)?;
     if loan.borrower != borrower {
@@ -491,16 +494,14 @@ fn repay_loan_internal(
             member.active_loans = member.active_loans.saturating_sub(1);
             storage::set_member(env, &member);
         }
-    }
-    storage::set_loan(env, &loan);
+        None => outstanding,
+    };
 
-    distribute_interest(env, interest_component);
-
-    env.events()
-        .publish((symbol_short!("loan_rpy"),), (loan_id, borrower, remaining));
-    Ok(())
-}
-
+    // Interest first, then principal.
+    let total_interest = loan.total_repayment.saturating_sub(loan.principal);
+    let interest_paid_so_far = loan.amount_repaid.min(total_interest);
+    let interest_remaining = total_interest.saturating_sub(interest_paid_so_far);
+    let interest_portion = payment.min(interest_remaining);
 /// Permissionless keeper call: persists the expired/rejected transition for a
 /// loan proposal whose voting window has passed without reaching quorum.
 /// Succeeds exactly once per proposal — subsequent calls are a no-op (no
@@ -525,12 +526,11 @@ pub fn expire_loan_proposal(env: &Env, proposal_id: u32) -> Result<(), Error> {
     storage::set_loan_proposal(env, &proposal);
     storage::extend_instance(env);
 
-    env.events().publish(
-        (symbol_short!("loan_exp"),),
-        (proposal_id, proposal.borrower),
+    util::token_client(env).transfer(f
+        &borrower,
+        &util::contract_address(env),
+        &payment,
     );
-    Ok(())
-}
 
 /// Marks an overdue loan as defaulted. Permissionless and callable by anyone
 /// once `due_time + policy.default_grace_period` has passed — this is an
@@ -553,34 +553,21 @@ pub fn mark_loan_defaulted(env: &Env, loan_id: u32) -> Result<(), Error> {
         return Err(Error::LoanNotActive);
     }
 
-    let policy = storage::get_policy(env);
-    let now = env.ledger().timestamp();
-    if now < loan.due_time + policy.default_grace_period {
-        return Err(Error::LoanNotOverdue);
-    }
-
-    loan.status = LoanStatus::Defaulted;
-    storage::set_loan(env, &loan);
-
-    let mut penalty: i128 = 0;
-    if let Some(mut member) = storage::get_member(env, &loan.borrower) {
-        penalty = (member.contribution * policy.default_penalty_bps as i128 / BASIS_POINTS)
-            .min(member.contribution);
-        member.contribution -= penalty;
+    loan.amount_repaid = loan.amount_repaid.saturating_add(payment);
+    if loan.amount_repaid >= loan.total_repayment {
+        loan.status = LoanStatus::Repaid;
+        let mut member = storage::get_member(env, &borrower).ok_or(Error::NotMember)?;
         member.has_active_loan = false;
         // Defaulted loans are terminal but were never repaid, so only the
         // outstanding count changes — `repaid_loans` deliberately stays put.
         member.active_loans = member.active_loans.saturating_sub(1);
         storage::set_member(env, &member);
-        if penalty > 0 {
-            storage::set_total_contributions(env, storage::get_total_contributions(env) - penalty);
-        }
     }
-    storage::extend_instance(env);
+    storage::set_loan(env, &loan);
 
     env.events().publish(
-        (symbol_short!("loan_dflt"),),
-        (loan_id, loan.borrower.clone(), penalty),
+        (symbol_short!("loan_repay"),),
+        (loan_id, borrower, payment, loan.amount_repaid),
     );
     Ok(())
 }
