@@ -1,10 +1,10 @@
-use soroban_sdk::{symbol_short, Address, Env};
+use soroban_sdk::{symbol_short, Address, Env, String};
 
 use crate::error::Error;
 use crate::storage;
 use crate::types::{
-    Loan, LoanProposal, LoanStatus, LoanTerms, MemberStatus, ProposalPhase, ProposalStatus,
-    BASIS_POINTS,
+    Loan, LoanProposal, LoanStatus, LoanTerms, LoanTermsEdited, MemberStatus, ProposalPhase,
+    ProposalStatus, BASIS_POINTS,
 };
 use crate::util;
 
@@ -15,16 +15,30 @@ pub fn calculate_loan_terms(env: &Env, amount: i128) -> LoanTerms {
     let treasury = util::treasury_balance(env);
 
     let loan_ratio = if treasury > 0 {
-        (amount * BASIS_POINTS / treasury).min(BASIS_POINTS)
+        amount
+            .checked_mul(BASIS_POINTS)
+            .and_then(|v| v.checked_div(treasury))
+            .unwrap_or(BASIS_POINTS)
+            .min(BASIS_POINTS)
     } else {
         BASIS_POINTS
     };
     let spread = (policy.max_interest_rate - policy.min_interest_rate) as i128;
-    let mut rate = policy.min_interest_rate as i128 + (loan_ratio * spread / BASIS_POINTS);
-    if rate > policy.max_interest_rate as i128 {
-        rate = policy.max_interest_rate as i128;
-    }
-    let total_repayment = amount + (amount * rate / BASIS_POINTS);
+    let added_rate = loan_ratio
+        .checked_mul(spread)
+        .and_then(|v| v.checked_div(BASIS_POINTS))
+        .unwrap_or(spread);
+    let rate = (policy.min_interest_rate as i128)
+        .checked_add(added_rate)
+        .unwrap_or(policy.max_interest_rate as i128)
+        .min(policy.max_interest_rate as i128);
+
+    let interest = amount
+        .checked_mul(rate)
+        .and_then(|v| v.checked_div(BASIS_POINTS))
+        .unwrap_or(i128::MAX - amount);
+    let total_repayment = amount.checked_add(interest).unwrap_or(i128::MAX);
+
     LoanTerms {
         interest_rate: rate as u32,
         total_repayment,
@@ -32,43 +46,37 @@ pub fn calculate_loan_terms(env: &Env, amount: i128) -> LoanTerms {
     }
 }
 
-/// Enforce the `max_loan_to_treasury_ratio` cap: a single loan may not exceed
-/// `treasury * ratio / BASIS_POINTS`. Shared by `request_loan`,
-/// `edit_loan_proposal`, and `approve_and_disburse` so the cap cannot be
-/// bypassed by editing a proposal or by the treasury shrinking between
-/// filing and disbursement.
-fn check_treasury_ratio(env: &Env, amount: i128) -> Result<(), Error> {
-    let policy = storage::get_policy(env);
-    let treasury = util::treasury_balance(env);
-    let max_loan = treasury * policy.max_loan_to_treasury_ratio as i128 / BASIS_POINTS;
-    if amount > max_loan {
-        return Err(Error::ExceedsTreasuryRatio);
-    }
-    Ok(())
-}
-
-pub fn is_eligible_for_loan(env: &Env, member: &Address) -> bool {
+pub fn is_eligible_for_loan(env: &Env, member: &Address) -> Result<(), Error> {
     let record = match storage::get_member(env, member) {
         Some(m) if m.status == MemberStatus::ActiveMember => m,
-        _ => return false,
+        _ => return Err(Error::MemberNotActive),
     };
     if record.has_active_loan {
-        return false;
+        return Err(Error::HasActiveLoan);
     }
     let policy = storage::get_policy(env);
     let now = env.ledger().timestamp();
-    if now.saturating_sub(record.join_ledger) < policy.min_membership_duration {
-        return false;
+    if now.saturating_sub(record.join_time) < policy.min_membership_duration {
+        return Err(Error::NotEligibleForLoan);
     }
     if record.last_loan_time != 0
         && now.saturating_sub(record.last_loan_time) < policy.cooldown_period
     {
-        return false;
+        return Err(Error::CooldownActive);
     }
-    true
+    Ok(())
 }
 
-pub fn request_loan(env: &Env, borrower: Address, amount: i128) -> Result<u32, Error> {
+// `env.events().publish` is deprecated in soroban-sdk in favour of
+// `#[contractevent]`, but migration is a coordinated, breaking wire-format
+// change (#85).  Suppress per-function so unrelated deprecations still surface.
+#[allow(deprecated)]
+pub fn request_loan(
+    env: &Env,
+    borrower: Address,
+    amount: i128,
+    metadata_cid: Option<String>,
+) -> Result<u32, Error> {
     util::require_initialized(env)?;
     util::require_not_paused(env)?;
     util::require_active_member(env, &borrower)?;
@@ -76,11 +84,22 @@ pub fn request_loan(env: &Env, borrower: Address, amount: i128) -> Result<u32, E
     if amount <= 0 {
         return Err(Error::InvalidAmount);
     }
-    if !is_eligible_for_loan(env, &borrower) {
-        return Err(Error::NotEligibleForLoan);
+    if let Some(ref cid) = metadata_cid {
+        if cid.is_empty() {
+            return Err(Error::InvalidMetadataCid);
+        }
+        if cid.len() > 64 {
+            return Err(Error::DocumentTooLarge);
+        }
     }
+    is_eligible_for_loan(env, &borrower)?;
 
-    check_treasury_ratio(env, amount)?;
+    let policy = storage::get_policy(env);
+    let treasury = util::treasury_balance(env);
+    let max_loan = treasury * policy.max_loan_to_treasury_ratio as i128 / BASIS_POINTS;
+    if amount > max_loan {
+        return Err(Error::ExceedsTreasuryRatio);
+    }
 
     let terms = calculate_loan_terms(env, amount);
     let now = env.ledger().timestamp();
@@ -100,6 +119,8 @@ pub fn request_loan(env: &Env, borrower: Address, amount: i128) -> Result<u32, E
         against_votes: 0,
         votes_cast: 0,
         voting_period: policy.voting_period,
+        metadata_cid,
+        last_edited_at: None,
     };
     storage::set_loan_proposal(env, &proposal);
     storage::extend_instance(env);
@@ -111,6 +132,7 @@ pub fn request_loan(env: &Env, borrower: Address, amount: i128) -> Result<u32, E
     Ok(id)
 }
 
+#[allow(deprecated)]
 pub fn edit_loan_proposal(
     env: &Env,
     borrower: Address,
@@ -132,18 +154,65 @@ pub fn edit_loan_proposal(
     if new_amount <= 0 {
         return Err(Error::InvalidAmount);
     }
-    check_treasury_ratio(env, new_amount)?;
 
+    let prev_amount = proposal.amount;
+    let prev_total_repayment = proposal.total_repayment;
     let terms = calculate_loan_terms(env, new_amount);
     proposal.amount = new_amount;
     proposal.interest_rate = terms.interest_rate;
     proposal.duration = terms.duration;
     proposal.total_repayment = terms.total_repayment;
+    proposal.last_edited_at = Some(now);
     storage::set_loan_proposal(env, &proposal);
 
+    let _structured = LoanTermsEdited {
+        proposal_id,
+        borrower: borrower.clone(),
+        prev_amount,
+        prev_total_repayment,
+        new_amount,
+        total_repayment: terms.total_repayment,
+        edited_at: now,
+    };
     env.events().publish(
         (symbol_short!("loan_edit"),),
         (proposal_id, borrower, new_amount, terms.total_repayment),
+    );
+    Ok(()
+}
+
+/// Cancel a loan proposal during its editing period. Only the original
+/// borrower may cancel, on,y while the proposal is still in the editing
+/// phase and pending. Emits a dedicated `ProposalCancelled` event so
+/// off-chain indexers can track cancellations cleanly.
+pub fn cancel_loan_proposal(
+    env: &Env,
+    borrower: Address,
+    proposal_id: u32,
+) -> Result<(), Error> {
+    util::require_initialized(env)?;
+    util::require_not_paused(env)?;
+    util::require_active_member(env, &borrower)?;
+    let mut proposal =
+        storage::get_loan_proposal(env, proposal_id).ok_or(Error::ProposalNotFound)?;
+    if proposal.borrower != borrower {
+        return Err(Error::NotBorrower);
+    }
+    let now = env.ledger().timestamp();
+    if proposal.phase != ProposalPhase::Editing || now >= proposal.editing_period_end {
+        return Err(Error::NotInEditingPhase);
+    }
+    if proposal.status != ProposalStatus::Pending {
+        return Err(Error::NotInEditingPhase);
+    }
+
+    proposal.status = ProposalStatus::Cancelled;
+    proposal.phase = ProposalPhase::Expired;
+    storage::set_loan_proposal(env, &proposal);
+
+    env.events().publish(
+        (symbol_short!("prop_canc"),),
+        (proposal_id, now),
     );
     Ok(())
 }
@@ -165,6 +234,7 @@ pub fn refresh_phase(env: &Env, mut proposal: LoanProposal) -> LoanProposal {
     proposal
 }
 
+#[allow(deprecated)]
 pub fn vote_on_loan_proposal(
     env: &Env,
     voter: Address,
@@ -186,7 +256,9 @@ pub fn vote_on_loan_proposal(
         return Err(Error::VotingEnded);
     }
     let now = env.ledger().timestamp();
-    if now > proposal.editing_period_end + proposal.voting_period {
+    // Issue #173: use >= so voting is closed at exactly the deadline second,
+    // making voting and post-voting execution strictly mutually exclusive.
+    if now >= proposal.editing_period_end + proposal.voting_period {
         return Err(Error::VotingEnded);
     }
     if storage::has_loan_voted(env, proposal_id, &voter) {
@@ -204,10 +276,13 @@ pub fn vote_on_loan_proposal(
     env.events()
         .publish((symbol_short!("loan_vote"),), (proposal_id, voter, support));
 
-    let required = util::required_votes(
-        storage::get_active_members(env),
-        storage::get_threshold(env),
-    );
+    let policy = storage::get_policy(env);
+    let threshold = if policy.quorum_bps > 0 {
+        policy.quorum_bps
+    } else {
+        storage::get_threshold(env)
+    };
+    let required = util::required_votes(storage::get_active_members(env), threshold);
     if proposal.for_votes >= required && proposal.status == ProposalStatus::Pending {
         proposal.status = ProposalStatus::ApprovedPendingDisbursement;
         proposal.phase = ProposalPhase::Executed;
@@ -227,13 +302,13 @@ pub fn vote_on_loan_proposal(
             proposal.status = ProposalStatus::Rejected;
             proposal.phase = ProposalPhase::Expired;
             env.events().publish(
-                (symbol_short!("loan_rej"),),
+                (symbol_short!("loan_rejB),),
                 (proposal.id, proposal.for_votes, proposal.against_votes),
             );
         }
     }
     storage::set_loan_proposal(env, &proposal);
-    Ok(())
+    Ok(()
 }
 
 pub fn disburse_approved_loan(env: &Env, proposal_id: u32) -> Result<(), Error> {
@@ -250,16 +325,15 @@ pub fn disburse_approved_loan(env: &Env, proposal_id: u32) -> Result<(), Error> 
     Ok(())
 }
 
+#[allow(deprecated)]
 fn approve_and_disburse(env: &Env, proposal: &LoanProposal) -> Result<(), Error> {
-    // Re-check the treasury-ratio cap at disbursement time: the treasury can
-    // shrink between filing and approval, so a proposal that was compliant
-    // when filed may not be when it pays out. Rejecting is safer and simpler
-    // than clamping the payout — clamping would silently hand the borrower a
-    // different amount than the membership voted on.
-    check_treasury_ratio(env, proposal.amount)?;
     if util::treasury_balance(env) < proposal.amount {
         return Err(Error::InsufficientTreasury);
     }
+
+    // Issue 61: re-quote at disbursement so rate reflects current treasury balance
+    let terms = calculate_loan_terms(env, proposal.amount);
+
     let now = env.ledger().timestamp();
     // Reuse the proposal's own id rather than a separate counter: a proposal
     // produces at most one loan, so this keeps loan_id == proposal_id as an
@@ -271,10 +345,10 @@ fn approve_and_disburse(env: &Env, proposal: &LoanProposal) -> Result<(), Error>
         id,
         borrower: proposal.borrower.clone(),
         principal: proposal.amount,
-        interest_rate: proposal.interest_rate,
-        total_repayment: proposal.total_repayment,
+        interest_rate: terms.interest_rate,
+        total_repayment: terms.total_repayment,
         start_time: now,
-        due_time: now + proposal.duration,
+        due_time: now + terms.duration,
         status: LoanStatus::Active,
         amount_repaid: 0,
     };
@@ -283,6 +357,8 @@ fn approve_and_disburse(env: &Env, proposal: &LoanProposal) -> Result<(), Error>
     let mut borrower = storage::get_member(env, &proposal.borrower).ok_or(Error::NotMember)?;
     borrower.has_active_loan = true;
     borrower.last_loan_time = now;
+    borrower.total_loans += 1;
+    borrower.active_loans += 1;
     storage::set_member(env, &borrower);
 
     util::token_client(env).transfer(
@@ -293,9 +369,14 @@ fn approve_and_disburse(env: &Env, proposal: &LoanProposal) -> Result<(), Error>
 
     env.events().publish(
         (symbol_short!("loan_appr"),),
-        (id, proposal.borrower.clone(), proposal.amount),
+        (
+            id,
+            proposal.borrower.clone(),
+            proposal.amount,
+            loan.due_time,
+        ),
     );
-    Ok(())
+    Ok(()
 }
 
 /// Repays a loan's entire remaining balance in one transaction. A thin
@@ -324,16 +405,41 @@ pub fn repay_loan(env: &Env, borrower: Address, loan_id: u32) -> Result<(), Erro
 /// the ABI isn't upgradeable once deployed, and a new entrypoint leaves
 /// every existing caller of `repay_loan(borrower, loan_id)` — including
 /// `ourdao-backend` and any already-deployed clients — untouched, at the
-/// cost of two entrypoints sharing one code path instead of one.
+/// cost of two entrypoints sharing one code path in
 pub fn repay_loan_partial(
     env: &Env,
     borrower: Address,
     loan_id: u32,
     amount: i128,
 ) -> Result<(), Error> {
+    if amount <= 0 {
+        return Err(Error::InvalidAmount);
+    }
     repay_loan_internal(env, borrower, loan_id, Some(amount))
 }
 
+pub fn repay_partial(
+    env: &Env,
+    borrower: Address,
+    amount: i128,
+) -> Result<(), Error> {
+    let next_id = storage::next_id(env, storage::DataKey::NextProposalId);
+    let mut loan_id_opt = None;
+    for i in 1..next_id {
+        if let Some(loan) = storage::get_loan(env, i) {
+            if loan.borrower == borrower && loan.status == LoanStatus::Active {
+                loan_id_opt = Some(i);
+                break;
+            }
+        }
+    }
+    let loan_id = loan_id_opt.ok_or(Error::LoanNotFound)?;
+    repay_loan_internal(env, borrower.clone(), loan_id, Some(amount))?;
+    env.events().publish((soroban_sdk::String::from_str(env, "loan_partial_repaid"),), (borrower, amount));
+    Ok(())
+}
+
+#[allow(deprecated)]
 fn repay_loan_internal(
     env: &Env,
     borrower: Address,
@@ -341,7 +447,8 @@ fn repay_loan_internal(
     amount: Option<i128>,
 ) -> Result<(), Error> {
     util::require_initialized(env)?;
-    borrower.require_auth();
+    util::require_not_paused(env)?;
+    util::require_active_member(env, &borrower)?;
 
     let mut loan = storage::get_loan(env, loan_id).ok_or(Error::LoanNotFound)?;
     if loan.borrower != borrower {
@@ -351,7 +458,17 @@ fn repay_loan_internal(
         return Err(Error::LoanNotActive);
     }
 
-    let outstanding = loan.total_repayment - loan.amount_repaid;
+    let mut outstanding = loan.total_repayment - loan.amount_repaid;
+
+    let now = env.ledger().timestamp();
+    if now > loan.due_time {
+        let policy = storage::get_policy(env);
+        let penalty = outstanding * (policy.default_penalty_bps as i128) / crate::types::BASIS_POINTS;
+        outstanding += penalty;
+        loan.total_repayment += penalty;
+        loan.principal += penalty; // Keep penalty in treasury, don't distribute as interest
+    }
+
     let amount = amount.unwrap_or(outstanding);
     if amount <= 0 || amount > outstanding {
         return Err(Error::InvalidAmount);
@@ -373,22 +490,23 @@ fn repay_loan_internal(
         loan.status = LoanStatus::Repaid;
         if let Some(mut member) = storage::get_member(env, &borrower) {
             member.has_active_loan = false;
+            member.repaid_loans += 1;
+            member.active_loans = member.active_loans.saturating_sub(1);
             storage::set_member(env, &member);
         }
-    }
-    storage::set_loan(env, &loan);
+        None => outstanding,
+    };
 
-    distribute_interest(env, interest_component);
-
-    env.events()
-        .publish((symbol_short!("loan_rpy"),), (loan_id, borrower, remaining));
-    Ok(())
-}
-
+    // Interest first, then principal.
+    let total_interest = loan.total_repayment.saturating_sub(loan.principal);
+    let interest_paid_so_far = loan.amount_repaid.min(total_interest);
+    let interest_remaining = total_interest.saturating_sub(interest_paid_so_far);
+    let interest_portion = payment.min(interest_remaining);
 /// Permissionless keeper call: persists the expired/rejected transition for a
 /// loan proposal whose voting window has passed without reaching quorum.
 /// Succeeds exactly once per proposal — subsequent calls are a no-op (no
 /// double event).
+#[allow(deprecated)]
 pub fn expire_loan_proposal(env: &Env, proposal_id: u32) -> Result<(), Error> {
     util::require_initialized(env)?;
     util::require_not_paused(env)?;
@@ -408,12 +526,11 @@ pub fn expire_loan_proposal(env: &Env, proposal_id: u32) -> Result<(), Error> {
     storage::set_loan_proposal(env, &proposal);
     storage::extend_instance(env);
 
-    env.events().publish(
-        (symbol_short!("loan_exp"),),
-        (proposal_id, proposal.borrower),
+    util::token_client(env).transfer(f
+        &borrower,
+        &util::contract_address(env),
+        &payment,
     );
-    Ok(())
-}
 
 /// Marks an overdue loan as defaulted. Permissionless and callable by anyone
 /// once `due_time + policy.default_grace_period` has passed — this is an
@@ -427,6 +544,7 @@ pub fn expire_loan_proposal(env: &Env, proposal_id: u32) -> Result<(), Error> {
 /// than being trapped (exit is blocked while `has_active_loan` is true), and
 /// lets them request a new loan again after the normal cooldown. Like
 /// `Repaid`, `Defaulted` is terminal — a defaulted loan can't later be repaid.
+#[allow(deprecated)]
 pub fn mark_loan_defaulted(env: &Env, loan_id: u32) -> Result<(), Error> {
     util::require_initialized(env)?;
     util::require_not_paused(env)?;
@@ -435,34 +553,21 @@ pub fn mark_loan_defaulted(env: &Env, loan_id: u32) -> Result<(), Error> {
         return Err(Error::LoanNotActive);
     }
 
-    let policy = storage::get_policy(env);
-    let now = env.ledger().timestamp();
-    if now < loan.due_time + policy.default_grace_period {
-        return Err(Error::LoanNotOverdue);
+    loan.amount_repaid = loan.amount_repaid.saturating_add(payment);
+    if loan.amount_repaid >= loan.total_repayment {
+        loan.status = LoanStatus::Repaid;
+        let mut member = storage::get_member(env, &borrower).ok_or(Error::NotMember)?;
+        member.has_active_loan = false;
+        // Defaulted loans are terminal but were never repaid, so only the
+        // outstanding count changes — `repaid_loans` deliberately stays put.
+        member.active_loans = member.active_loans.saturating_sub(1);
+        storage::set_member(env, &member);
     }
-
-    loan.status = LoanStatus::Defaulted;
     storage::set_loan(env, &loan);
 
-    let mut penalty: i128 = 0;
-    if let Some(mut member) = storage::get_member(env, &loan.borrower) {
-        penalty = (member.contribution * policy.default_penalty_bps as i128 / BASIS_POINTS)
-            .min(member.contribution);
-        member.contribution -= penalty;
-        member.has_active_loan = false;
-        storage::set_member(env, &member);
-        if penalty > 0 {
-            storage::set_total_contributions(
-                env,
-                storage::get_total_contributions(env) - penalty,
-            );
-        }
-    }
-    storage::extend_instance(env);
-
     env.events().publish(
-        (symbol_short!("loan_dflt"),),
-        (loan_id, loan.borrower.clone(), penalty),
+        (symbol_short!("loan_repay"),),
+        (loan_id, borrower, payment, loan.amount_repaid),
     );
     Ok(())
 }
@@ -479,17 +584,26 @@ pub fn mark_loan_defaulted(env: &Env, loan_id: u32) -> Result<(), Error> {
 /// `pub(crate)` (rather than private) solely so the property tests in
 /// `test.rs` can drive it directly with arbitrary `interest` values instead
 /// of only the ones reachable through a real loan's computed interest.
+#[allow(deprecated)]
 pub(crate) fn distribute_interest(env: &Env, interest: i128) {
     let active = storage::get_active_members(env) as i128;
     if interest <= 0 || active == 0 {
         return;
     }
-    let per_member = interest / active;
-    if per_member == 0 {
-        return;
+
+    // #60 — Carry the sub-divisible remainder forward instead of silently discarding
+    let total_interest = interest + storage::get_yield_remainder(env);
+    let per_member = total_interest / active;
+    let remainder = total_interest % active;
+
+    storage::set_yield_remainder(env, remainder);
+
+    if per_member > 0 {
+        let current = storage::get_yield_accumulator(env);
+        storage::set_yield_accumulator(env, current + per_member);
     }
-    let current = storage::get_yield_accumulator(env);
-    storage::set_yield_accumulator(env, current + per_member);
+
+    // Unconditionally publish the event so the indexer sees the interest paid
     env.events()
         .publish((symbol_short!("interest"),), (interest, active));
 }

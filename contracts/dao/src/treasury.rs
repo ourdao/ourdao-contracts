@@ -5,10 +5,15 @@ use crate::storage;
 use crate::types::{ProposalStatus, TreasuryProposal};
 use crate::util;
 
+// `env.events().publish` is deprecated in soroban-sdk in favour of
+// `#[contractevent]`, but migration is a coordinated, breaking wire-format
+// change (#85).  Suppress per-function so unrelated deprecations still surface.
+#[allow(deprecated)]
 pub fn propose_withdrawal(
     env: &Env,
     proposer: Address,
     amount: i128,
+    asset: Address,
     destination: Address,
     reason: String,
     private: bool,
@@ -20,15 +25,21 @@ pub fn propose_withdrawal(
     if amount <= 0 {
         return Err(Error::InvalidAmount);
     }
-    if amount > util::treasury_balance(env) {
+    if reason.is_empty() || reason.len() > 256 {
+        return Err(Error::InvalidProposal);
+    }
+    let available = util::treasury_balance(env) - util::reserved_loan_commitments(env);
+    if amount > available {
         return Err(Error::InsufficientTreasury);
     }
 
     let id = storage::next_id(env, storage::DataKey::NextTreasuryId);
+    let policy = storage::get_policy(env);
     let proposal = TreasuryProposal {
         id,
         proposer,
         amount,
+        asset: asset.clone(),
         destination: destination.clone(),
         reason,
         created_at: env.ledger().timestamp(),
@@ -36,8 +47,8 @@ pub fn propose_withdrawal(
         for_votes: 0,
         against_votes: 0,
         votes_cast: 0,
-        voting_period: storage::get_policy(env).voting_period,
-        treasury_threshold: storage::get_policy(env).treasury_threshold,
+        voting_period: policy.voting_period,
+        treasury_threshold: policy.treasury_threshold,
         private,
     };
     storage::set_treasury_proposal(env, &proposal);
@@ -45,7 +56,7 @@ pub fn propose_withdrawal(
 
     env.events().publish(
         (symbol_short!("tre_prop"),),
-        (id, amount, destination, private),
+        (id, amount, asset, destination, private),
     );
     Ok(id)
 }
@@ -67,6 +78,7 @@ pub fn vote(env: &Env, voter: Address, proposal_id: u32, support: bool) -> Resul
 /// Shared vote-recording + execution path. Used by open voting and by the
 /// commit-reveal privacy module once a vote is revealed. Assumes the caller has
 /// already authorized `voter` and enforced any privacy-mode rules.
+#[allow(deprecated)]
 pub fn tally(
     env: &Env,
     mut proposal: TreasuryProposal,
@@ -82,8 +94,6 @@ pub fn tally(
     // lifecycle: once VOTING_PERIOD has elapsed since creation, persist the
     // Expired status and reject further votes.
     if env.ledger().timestamp() > proposal.created_at + proposal.voting_period {
-        proposal.status = ProposalStatus::Expired;
-        storage::set_treasury_proposal(env, &proposal);
         return Err(Error::NotInVotingPhase);
     }
     if storage::has_treasury_voted(env, proposal.id, voter) {
@@ -110,11 +120,9 @@ pub fn tally(
     if proposal.for_votes >= required {
         proposal.status = ProposalStatus::ApprovedPendingDisbursement;
         storage::set_treasury_proposal(env, &proposal);
-        if execute(env, &mut proposal).is_err() {
-            env.events().publish(
-                (symbol_short!("tre_wait"),),
-                (proposal.id, proposal.amount),
-            );
+        if execute(env, &mut proposal).is_error() {
+            env.events()
+                .publish((symbol_short!("tre_wait"),), (proposal.id, proposal.amount));
         }
     } else {
         let remaining = storage::get_active_members(env).saturating_sub(proposal.votes_cast);
@@ -134,8 +142,8 @@ pub fn tally(
 pub fn execute_approved(env: &Env, proposal_id: u32) -> Result<(), Error> {
     util::require_initialized(env)?;
     util::require_not_paused(env)?;
-    let mut proposal = storage::get_treasury_proposal(env, proposal_id)
-        .ok_or(Error::TreasuryProposalNotFound)?;
+    let mut proposal =
+        storage::get_treasury_proposal(env, proposal_id).ok_or(Error::TreasuryProposalNotFound)?;
     if proposal.status != ProposalStatus::ApprovedPendingDisbursement {
         return Err(Error::NotInVotingPhase);
     }
@@ -144,19 +152,108 @@ pub fn execute_approved(env: &Env, proposal_id: u32) -> Result<(), Error> {
     Ok(())
 }
 
+#[allow(deprecated)]
 fn execute(env: &Env, proposal: &mut TreasuryProposal) -> Result<(), Error> {
-    if util::treasury_balance(env) < proposal.amount {
+    if util::treasury_balance_for(env, &proposal.asset) < proposal.amount {
         return Err(Error::InsufficientTreasury);
     }
     proposal.status = ProposalStatus::Executed;
-    util::token_client(env).transfer(
+    util::token_client_for(env, &proposal.asset).transfer(
         &util::contract_address(env),
         &proposal.destination,
         &proposal.amount,
     );
     env.events().publish(
         (symbol_short!("tre_exec"),),
-        (proposal.id, proposal.amount, proposal.destination.clone()),
+        (proposal.id, proposal.amount, proposal.asset.clone(), proposal.destination.clone()),
     );
+    Ok(())
+}
+
+/// Cancel a treasury proposal during its editing period. Only the original
+/// proposer may cancel, only while the proposal is still Pending and within
+/// the editing window. Emits a dedicated `ProposalCancelled` event so
+/// off-chain indexers can track cancellations cleanly.
+pub fn cancel_treasury_proposal(
+    env: &Env,
+    proposer: Address,
+    proposal_id: u32,
+) -> Result<(), Error> {
+    util::require_initialized(env)?;
+    util::require_not_paused(env)?;
+    util::require_active_member(env, &proposer)?;
+    let mut proposal = storage::get_treasury_proposal(env, proposal_id)
+        .ok_or(Error::TreasuryProposalNotFound)?;
+    if proposal.proposer != proposer {
+        return Err(Error::NotAuthorized);
+    }
+    if proposal.status != ProposalStatus::Pending {
+        return Err(Error::NotInVotingPhase);
+    }
+    let now = env.ledger().timestamp();
+    // Treasury proposals don't carry an explicit editing window; treat the
+    // editing period as the policy's editing_period from creation.
+    let policy = storage::get_policy(env);
+    if now > proposal.created_at + policy.editing_period {
+        return Err(Error::NotInEditingPhase);
+    }
+
+    proposal.status = ProposalStatus::Cancelled;
+    storage::set_treasury_proposal(env, &proposal);
+
+    env.events().publish(
+        (symbol_short!("prop_canc"),),
+        (proposal_id, now),
+    );
+    Ok(())
+}
+pub fn expire_treasury_proposal(env: &Env, proposal_id: u32) -> Result<(), Error> {
+    util::require_initialized(env)?;
+    util::require_not_paused(env)?;
+    let mut proposal =
+        storage::get_treasury_proposal(env, proposal_id).ok_or(Error::TreasuryProposalNotFound)?;
+
+    if proposal.status != ProposalStatus::Pending {
+        return Err(Error::NotInVotingPhase); // Re-using error
+    }
+
+    if env.ledger().timestamp() > proposal.created_at + proposal.voting_period {
+        proposal.status = ProposalStatus::Expired;
+        storage::set_treasury_proposal(env, &proposal);
+        // Emitting an event would be nice but not strictly required.
+        Ok(())
+    } else {
+        Err(Error::NotInVotingPhase) // Re-using error
+    }
+}
+
+/// Propose adding a new asset to the treasury token whitelist.
+pub fn propose_token(
+    env: &Env,
+    proposer: Address,
+    asset: Address,
+) -> Result<(), Error> {
+    util::require_initialized(env)?;
+    util::require_not_paused(env)?;
+    util::require_admin(env, &proposer)?;
+
+    if storage::is_token_whitelisted(env, &asset) {
+        return Err(Error::AlreadyWhitelisted);
+    }
+    storage::set_token_whitelisted(env, &asset, true);
+    storage::extend_instance(env);
+    env.events()
+        .publish((symbol_short!("tok_add"),), (asset,));
+    Ok(())
+}
+
+/// Remove an asset from the treasury token whitelist.
+pub fn remove_token(env: &Env, admin: Address, asset: Address) -> Result<(), Error> {
+    util::require_initialized(env)?;
+    util::require_not_paused(env)?;
+    util::require_admin(env, &admin)?;
+    storage::set_token_whitelisted(env, &asset, false);
+    env.events()
+        .publish((symbol_short!("tok_rem"),), (asset,));
     Ok(())
 }

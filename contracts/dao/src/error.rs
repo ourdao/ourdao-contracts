@@ -47,6 +47,7 @@ pub enum Error {
 
     // ---- native-swap modules ----
     NameTaken = 60,
+    /// Reserved for future name registry use
     NameNotFound = 61,
     NoStake = 62,
     InsufficientStake = 63,
@@ -62,4 +63,17 @@ pub enum Error {
     /// Caller is not the proposal's proposer/borrower and may not modify its
     /// attached document (#21).
     NotProposalOwner = 73,
+    DocumentTooLarge = 74,
+    /// The token passed to `initialize` is not a contract implementing the
+    /// token interface (#115).
+    InvalidToken = 75,
+    /// Timelock delay has not expired yet (#192).
+    TimelockNotExpired = 76,
+    /// No policy update is currently pending (#192).
+    NoPendingPolicy = 77,
+    /// Proposal metadata CID is invalid (#194).
+    InvalidMetadataCid = 78,
+    /// Invalid delegation target (e.g. self-delegation) (#188).
+    InvalidDelegation = 79,
+    InvalidProposal = 80,
 }

@@ -7,6 +7,7 @@ use soroban_sdk::{symbol_short, Address, Bytes, Env};
 
 use crate::error::Error;
 use crate::storage::{self, ProposalKind};
+use crate::types::ProposalPhase;
 use crate::util;
 
 fn proposal_exists(env: &Env, kind: &ProposalKind, id: u32) -> bool {
@@ -27,6 +28,10 @@ fn proposal_owner(env: &Env, kind: &ProposalKind, id: u32) -> Option<Address> {
     }
 }
 
+// `env.events().publish` is deprecated in soroban-sdk in favour of
+// `#[contractevent]`, but migration is a coordinated, breaking wire-format
+// change (#85).  Suppress per-function so unrelated deprecations still surface.
+#[allow(deprecated)]
 pub fn attach_document(
     env: &Env,
     caller: Address,
@@ -37,6 +42,9 @@ pub fn attach_document(
     util::require_initialized(env)?;
     util::require_not_paused(env)?;
     util::require_active_member(env, &caller)?;
+    if content_hash.len() > 64 {
+        return Err(Error::DocumentTooLarge);
+    }
     if !proposal_exists(env, &kind, proposal_id) {
         return Err(Error::ProposalNotFound);
     }
@@ -45,6 +53,15 @@ pub fn attach_document(
     if proposal_owner(env, &kind, proposal_id) != Some(caller.clone()) {
         return Err(Error::NotProposalOwner);
     }
+    // #59 — Do not allow silent swaps of the document once voting is open.
+    if let ProposalKind::Loan = kind {
+        if let Some(p) = storage::get_loan_proposal(env, proposal_id) {
+            if p.phase != ProposalPhase::Editing {
+                return Err(Error::NotInEditingPhase);
+            }
+        }
+    }
+
     storage::set_doc(env, kind, proposal_id, &content_hash);
     env.events()
         .publish((symbol_short!("doc_attn"),), (kind, proposal_id, caller));

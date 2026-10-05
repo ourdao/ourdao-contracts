@@ -38,26 +38,53 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy
+        if: always()
         run: cargo clippy --all-targets --locked -- -D warnings
 
       # --locked keeps the committed Cargo.lock (which pins ed25519-dalek to
       # 2.2.0) authoritative, so the resolver can't float onto an incompatible
       # transitive release.
       - name: Test
+        if: always()
         run: cargo test --locked
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      # --locked keeps the committed Cargo.lock (which pins ed25519-dalek to
+      # 2.2.0) authoritative, so the resolver can't float onto an incompatible
+      # transitive release.
+      - name: Test & Coverage
+        run: cargo llvm-cov --locked --all-targets --fail-under-lines 95
 
       - name: Build wasm (release)
+        if: always()
         run: cargo build --locked --target ${{ env.WASM_TARGET }} --release
 
-  audit:
+  supply-chain:
     runs-on: ubuntu-latest
-    # A separate job so a newly published advisory (which can land against a
-    # pin we already know about and can't move — see the ed25519-dalek note
-    # in the README) surfaces visibly without blocking merges on unrelated PRs.
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
-      - name: Audit dependencies
-        uses: rustsec/audit-check@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@cargo-audit
+
+      - name: Reject known dependency advisories
+        run: cargo audit
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@cargo-deny
+
+      - name: Check licenses, bans, advisories, and sources
+        run: cargo deny check advisories licenses bans sources
+
+  reproducible-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify two isolated container builds are byte-for-byte reproducible
+        run: ./scripts/build-reproducible.sh

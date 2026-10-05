@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, String};
+use soroban::{contracttype, Address, String};
 
 /// Basis-points denominator (100% == 10_000).
 pub const BASIS_POINTS: i128 = 10_000;
@@ -8,7 +8,7 @@ pub const NAME_MIN_LEN: u32 = 3;
 /// storage and every `name_reg` event payload bounded.
 pub const NAME_MAX_LEN: u32 = 32;
 
-#[contracttype]
+#contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MemberStatus {
     ActiveMember,
@@ -24,6 +24,7 @@ pub enum ProposalStatus {
     Rejected,
     Executed,
     Expired,
+    Cancelled,
 }
 
 #[contracttype]
@@ -48,11 +49,27 @@ pub enum LoanStatus {
 pub struct Member {
     pub address: Address,
     pub status: MemberStatus,
-    pub join_ledger: u64,
+    pub join_time: u64,
     pub contribution: i128,
     pub share_balance: i128,
     pub has_active_loan: bool,
     pub last_loan_time: u64,
+    /// Lifetime count of loans disbursed to this member.
+    pub total_loans: u32,
+    /// Lifetime count of this member's loans that reached full repayment.
+    pub repaid_loans: u32,
+    /// Loans currently outstanding (disbursed and not yet repaid or defaulted).
+    pub active_loans: u32,
+}
+
+/// On-chain credit track record for a member. Returned by
+/// `get_member_loan_stats` as an O(1) read of the member record.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MemberLoanStats {
+    pub total_loans: u32,
+    pub repaid_loans: u32,
+    pub active_loans: u32,
 }
 
 /// Tunable lending parameters. Durations are in ledger seconds; rates in bps.
@@ -68,11 +85,12 @@ pub struct LoanPolicy {
     pub max_loan_to_treasury_ratio: u32,
     /// Extra time past `Loan.due_time` before a loan becomes markable as defaulted.
     pub default_grace_period: u64,
-    /// Basis points of the defaulting borrower's `contribution` slashed on default.
+    /// Basis-points of the defaulting borrower's `contribution` slashed on default.
     pub default_penalty_bps: u32,
     pub editing_period: u64,
     pub voting_period: u64,
     pub treasury_threshold: u32,
+    pub quorum_bps: u32,
 }
 
 #[contracttype]
@@ -92,6 +110,11 @@ pub struct LoanProposal {
     pub against_votes: i128,
     pub votes_cast: u32,
     pub voting_period: u64,
+    pub metadata_cid: Option<String>,
+    /// Stellar asset address the loan is denominated in.
+    pub asset: Address,
+    /// Timestamp of the last `edit_loan_proposal` call (`None` if never edited).
+    pub last_edited_at: Option<u64>,
 }
 
 #[contracttype]
@@ -106,6 +129,10 @@ pub struct Loan {
     pub due_time: u64,
     pub status: LoanStatus,
     pub amount_repaid: i128,
+    /// Stellar asset the loan was issued in.
+    pub asset: Address,
+    /// Stellar asset the loan must be repaid in.
+    pub repayment_asset: Address,
 }
 
 #[contracttype]
@@ -125,6 +152,8 @@ pub struct TreasuryProposal {
     pub treasury_threshold: u32,
     /// When true, votes must be committed then revealed (commit-reveal privacy).
     pub private: bool,
+    /// Stellar asset the treasury payout is denominated in.
+    pub asset: Address,
 }
 
 /// Computed loan terms returned by the read-only quote helper.
@@ -134,4 +163,73 @@ pub struct LoanTerms {
     pub interest_rate: u32,
     pub total_repayment: i128,
     pub duration: u64,
+}
+
+/// Structured event emitted when a borrower edits loan proposal terms.
+/// Captures prior and updated terms plus the edit timestamp.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LoanTermsEdited {
+    pub proposal_id: u32,
+    pub borrower: Address,
+    pub prev_amount: i128,
+    pub prev_total_repayment: i128,
+    pub new_amount: i128,
+    pub total_repayment: i128,
+    pub edited_at: u64,
+}
+
+/// Pending policy update undergoing timelock delay (#192).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PendingPolicyUpdate {
+    pub policy: LoanPolicy,
+    pub proposed_at: u64,
+    pub execution_time: u64,
+}
+
+/// Structured event emitted upon staking reward claim (#193).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StakingRewardClaimed {
+    pub member: Address,
+    pub amount: i128,
+    pub timestamp: u64,
+}
+
+/// An approved Stellar asset that the treasury may accept deposits in and
+/// issue loans in. Admins propose and add tokens to the whitelist.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TokenWhitelist {
+    /// Stellar asset contract address.
+    pub asset: Address,
+    /// Human-readable symbol (e.g. "USDX", "XEL").
+    pub symbol: String,
+    /// Ledger timestamp the asset was added.
+    pub added_at: u64,
+    /// Whether the asset is currently accepted for deposits and loans.
+    pub active: bool,
+}
+
+/// Proposal to add a new token to the treasury whitelist.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TokenWhitelistProposal {
+    pub id: u32,
+    pub proposer: Address,
+    pub asset: Address,
+    pub symbol: String,
+    pub created_at: u64,
+    pub status: ProposalStatus,
+    pub for_votes: i128,
+    pub against_votes: i128,
+    pub votes_cast: u32,
+    pub voting_period: u64,
+    pub treasury_threshold: u32,
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProposalVote {
+    pub proposal_id: u32,
+    pub vote: bool,
 }

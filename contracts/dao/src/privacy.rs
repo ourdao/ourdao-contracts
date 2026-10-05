@@ -22,6 +22,10 @@ pub fn compute_commitment(env: &Env, support: bool, salt: &BytesN<32>) -> BytesN
     env.crypto().sha256(&preimage).to_bytes()
 }
 
+// `env.events().publish` is deprecated in soroban-sdk in favour of
+// `#[contractevent]`, but migration is a coordinated, breaking wire-format
+// change (#85).  Suppress per-function so unrelated deprecations still surface.
+#[allow(deprecated)]
 pub fn commit_vote(
     env: &Env,
     voter: Address,
@@ -40,7 +44,15 @@ pub fn commit_vote(
     if proposal.status != ProposalStatus::Pending {
         return Err(Error::NotInVotingPhase);
     }
+    if env.ledger().timestamp() > proposal.created_at + proposal.voting_period {
+        return Err(Error::VotingEnded);
+    }
     if storage::has_treasury_voted(env, proposal_id, &voter) {
+        return Err(Error::AlreadyVoted);
+    }
+    // A commitment is binding: overwriting it would let a member keep changing
+    // their hidden vote until the reveal phase (#49).
+    if storage::get_commit(env, proposal_id, &voter).is_some() {
         return Err(Error::AlreadyVoted);
     }
 
@@ -50,6 +62,7 @@ pub fn commit_vote(
     Ok(())
 }
 
+#[allow(deprecated)]
 pub fn reveal_vote(
     env: &Env,
     voter: Address,
@@ -65,6 +78,17 @@ pub fn reveal_vote(
         storage::get_treasury_proposal(env, proposal_id).ok_or(Error::TreasuryProposalNotFound)?;
     if !proposal.private {
         return Err(Error::NotAuthorized);
+    }
+    let commit_end = proposal.created_at + proposal.voting_period;
+    let reveal_end = commit_end + proposal.voting_period;
+    if env.ledger().timestamp() <= commit_end {
+        return Err(Error::NotYetRevealed);
+    }
+    if env.ledger().timestamp() > reveal_end {
+        return Err(Error::VotingEnded);
+    }
+    if storage::has_treasury_voted(env, proposal_id, &voter) {
+        return Err(Error::AlreadyRevealed);
     }
 
     let stored = storage::get_commit(env, proposal_id, &voter).ok_or(Error::NoCommitment)?;
