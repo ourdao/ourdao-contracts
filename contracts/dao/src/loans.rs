@@ -46,6 +46,24 @@ pub fn calculate_loan_terms(env: &Env, amount: i128) -> LoanTerms {
     }
 }
 
+/// Enforce the `max_loan_to_treasury_ratio` policy cap: no single loan may
+/// exceed `treasury * max_loan_to_treasury_ratio / BASIS_POINTS`, measured
+/// against the treasury balance at the moment of the call.
+///
+/// Shared by `request_loan`, `edit_loan_proposal` and `approve_and_disburse`,
+/// so the cap cannot be escaped either by filing a small proposal and editing
+/// the amount up during the editing window, or by the treasury shrinking
+/// between filing and disbursement.
+fn check_treasury_ratio(env: &Env, amount: i128) -> Result<(), Error> {
+    let policy = storage::get_policy(env);
+    let treasury = util::treasury_balance(env);
+    let max_loan = treasury * policy.max_loan_to_treasury_ratio as i128 / BASIS_POINTS;
+    if amount > max_loan {
+        return Err(Error::ExceedsTreasuryRatio);
+    }
+    Ok(())
+}
+
 pub fn is_eligible_for_loan(env: &Env, member: &Address) -> Result<(), Error> {
     let record = match storage::get_member(env, member) {
         Some(m) if m.status == MemberStatus::ActiveMember => m,
@@ -94,13 +112,9 @@ pub fn request_loan(
     }
     is_eligible_for_loan(env, &borrower)?;
 
-    let policy = storage::get_policy(env);
-    let treasury = util::treasury_balance(env);
-    let max_loan = treasury * policy.max_loan_to_treasury_ratio as i128 / BASIS_POINTS;
-    if amount > max_loan {
-        return Err(Error::ExceedsTreasuryRatio);
-    }
+    check_treasury_ratio(env, amount)?;
 
+    let policy = storage::get_policy(env);
     let terms = calculate_loan_terms(env, amount);
     let now = env.ledger().timestamp();
     let id = storage::next_id(env, storage::DataKey::NextProposalId);
@@ -154,6 +168,11 @@ pub fn edit_loan_proposal(
     if new_amount <= 0 {
         return Err(Error::InvalidAmount);
     }
+    // The proposal was checked against the cap at its original amount, but the
+    // borrower controls this one: without the same cap `request_loan` applies,
+    // a compliant 1-token proposal could be edited up to the whole treasury
+    // during the editing window and pay out above `max_loan_to_treasury_ratio`.
+    check_treasury_ratio(env, new_amount)?;
 
     let prev_amount = proposal.amount;
     let prev_total_repayment = proposal.total_repayment;
@@ -327,6 +346,19 @@ pub fn disburse_approved_loan(env: &Env, proposal_id: u32) -> Result<(), Error> 
 
 #[allow(deprecated)]
 fn approve_and_disburse(env: &Env, proposal: &LoanProposal) -> Result<(), Error> {
+    // Re-check the ratio cap against the treasury as it stands *now*. A
+    // proposal that was compliant when it was filed can stop being compliant
+    // before it pays out: members can exit, or other loans can be disbursed
+    // from the same treasury in between. This is the check that actually
+    // protects the DAO, because it is the last one before the tokens move.
+    //
+    // Rejecting outright (rather than clamping the payout down to the new cap)
+    // is the simpler and safer choice: the amount is part of what the
+    // membership voted on, and silently paying out a different figure would
+    // both surprise the borrower and re-open the proposal's terms. Rejecting
+    // leaves the proposal `ApprovedPendingDisbursement`, which
+    // `disburse_approved_loan` can retry once the treasury recovers.
+    check_treasury_ratio(env, proposal.amount)?;
     if util::treasury_balance(env) < proposal.amount {
         return Err(Error::InsufficientTreasury);
     }
@@ -335,6 +367,7 @@ fn approve_and_disburse(env: &Env, proposal: &LoanProposal) -> Result<(), Error>
     let terms = calculate_loan_terms(env, proposal.amount);
 
     let now = env.ledger().timestamp();
+    let due_time = now + terms.duration;
     // Reuse the proposal's own id rather than a separate counter: a proposal
     // produces at most one loan, so this keeps loan_id == proposal_id as an
     // invariant instead of two sequences that silently diverge the moment
@@ -348,7 +381,7 @@ fn approve_and_disburse(env: &Env, proposal: &LoanProposal) -> Result<(), Error>
         interest_rate: terms.interest_rate,
         total_repayment: terms.total_repayment,
         start_time: now,
-        due_time: now + terms.duration,
+        due_time,
         status: LoanStatus::Active,
         amount_repaid: 0,
     };
