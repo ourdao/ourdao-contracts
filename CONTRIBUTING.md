@@ -53,7 +53,7 @@ cargo test --locked                                          # full test suite
 cargo build --locked --target wasm32v1-none --release        # wasm build
 ```
 
-`make test`, `make fmt`, `make clippy`, and `make build` are shorthands for the same things.
+`make ci` runs all four in sequence — use it as your one-command pre-push check. The individual shorthands `make fmt`, `make clippy`, `make test`, and `make build` map flag-for-flag to their CI equivalents.
 
 A separate `audit` job runs `cargo audit` against `Cargo.lock` on every push and PR (`cargo install cargo-audit --locked` once locally, then `cargo audit` or `make audit`). It's a distinct job on purpose: an advisory landing against a dependency we already know about and can't move on (see the `ed25519-dalek` note below) shouldn't block merging unrelated PRs, but it still needs to stay visible.
 
@@ -78,6 +78,31 @@ These apply on top of the general rules above, because this is a smart contract:
 - **Respect the storage TTL discipline.** Persistent storage entries extend their time-to-live on read and write. New storage reads/writes must follow the same pattern, or that data will silently expire under Soroban's state archival.
 - **Don't add a second id counter.** A loan reuses its originating proposal's id (`loan.id == proposal.id`) on purpose — independent counters silently diverge as soon as any proposal is rejected. This invariant is covered by a regression test; if your change touches it, that test should tell you.
 - **Authorization changes need explicit justification.** If your PR adds, removes, or relaxes a `require_auth` call, the description must say exactly who can now do what they couldn't before, and why that's correct.
+
+## Releases and Verification
+
+Releases are published automatically when a tag is pushed (e.g., `v1.0.0`). Each release includes:
+
+- A built, optimized wasm artifact (`ourdao_dao.optimized.wasm`)
+- A SHA-256 checksum in the release notes
+- Build metadata (commit, target, command)
+
+**Member verification:**
+
+To verify a deployed contract matches a GitHub release:
+
+```bash
+# 1. Download the wasm from the release or build it:
+git checkout <TAG>
+stellar contract build --optimize
+
+# 2. Compute its SHA-256:
+sha256sum target/wasm32v1-none/release/ourdao_dao.optimized.wasm
+
+# 3. Compare against the checksum in the release notes
+```
+
+Deployed contract IDs for each network are documented in [DEPLOYMENTS.md](./DEPLOYMENTS.md).
 
 ## What gets closed without review
 
