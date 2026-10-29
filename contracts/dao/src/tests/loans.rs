@@ -1183,3 +1183,46 @@ fn default_penalty_rounds_up_to_favour_treasury() {
     let expected_penalty = (contribution_before * 2_000 + 10_000 - 1) / 10_000;
     assert_eq!(member.contribution, contribution_before - expected_penalty);
 }
+
+// ==================== issue #300: tiny partial repayments ====================
+#[test]
+fn many_tiny_partial_repayments_sum_to_total() {
+    let s = setup(3);
+    let borrower = s.members.get(0).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let v2 = s.members.get(2).unwrap();
+
+    let pid = s.client.request_loan(&borrower, &100, &None);
+    advance(&s.env, EDITING + 1);
+    s.client.vote_on_loan_proposal(&v1, &pid, &true);
+    s.client.vote_on_loan_proposal(&v2, &pid, &true);
+
+    let loan = s.client.get_loan(&pid).unwrap();
+    let total = loan.total_repayment;
+    assert!(total > 0);
+
+    // Repay in small micro-chunks of 1, 2, or 3 stroops until fully repaid
+    let mut sum_repaid: i128 = 0;
+    while sum_repaid < total {
+        let remaining = total - sum_repaid;
+        let chunk = (1 + (sum_repaid % 3)).min(remaining);
+        s.client.repay_loan_partial(&borrower, &pid, &chunk);
+        sum_repaid += chunk;
+
+        let cur_loan = s.client.get_loan(&pid).unwrap();
+        assert_eq!(cur_loan.amount_repaid, sum_repaid);
+        if sum_repaid < total {
+            assert_eq!(cur_loan.status, LoanStatus::Active);
+            assert!(s.client.get_member(&borrower).unwrap().has_active_loan);
+        } else {
+            assert_eq!(cur_loan.status, LoanStatus::Repaid);
+            assert_eq!(cur_loan.amount_repaid, cur_loan.total_repayment);
+            assert!(!s.client.get_member(&borrower).unwrap().has_active_loan);
+        }
+    }
+
+    assert_eq!(sum_repaid, total);
+    let final_loan = s.client.get_loan(&pid).unwrap();
+    assert_eq!(final_loan.status, LoanStatus::Repaid);
+    assert_eq!(final_loan.amount_repaid, final_loan.total_repayment);
+}
