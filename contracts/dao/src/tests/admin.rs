@@ -748,3 +748,26 @@ fn pauser_can_pause_but_cannot_unpause() {
     // Revoked pauser can no longer pause
     assert_eq!(s.client.try_pause(&pauser), Err(Ok(Error::NotAdmin)));
 }
+
+#[test]
+fn whitelisting_beyond_cap_fails() {
+    let s = setup(1);
+    // Base token is already whitelisted (count = 1).
+    // Add 9 more tokens to reach MAX_WHITELISTED_TOKENS (10).
+    for _ in 0..9 {
+        let issuer = Address::generate(&s.env);
+        let extra = s.env.register_stellar_asset_contract_v2(issuer).address();
+        s.client.propose_token_addition(&s.admin, &extra);
+        advance(&s.env, TIMELOCK_DURATION);
+        s.client.execute_token_addition(&s.admin, &extra);
+    }
+    assert_eq!(s.client.get_whitelisted_tokens().len(), 10);
+
+    // 11th token proposal must fail with TooManyWhitelistedTokens
+    let issuer11 = Address::generate(&s.env);
+    let extra11 = s.env.register_stellar_asset_contract_v2(issuer11).address();
+    assert_eq!(
+        s.client.try_propose_token_addition(&s.admin, &extra11),
+        Err(Ok(Error::TooManyWhitelistedTokens))
+    );
+}

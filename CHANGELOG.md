@@ -4,6 +4,9 @@ All notable changes to `ourdao-contracts` are documented here. The format follow
 
 ## [Unreleased]
 
+### Added
+- Cap the number of whitelisted tokens to MAX_WHITELISTED_TOKENS (10) and reject adding further tokens with Error::TooManyWhitelistedTokens (#282).
+
 ### Changed
 - Explicitly enforce and document that pausers cannot unpause (`admin::unpause` requires admin authorization and rejects non-admin pausers with `Error::NotAdmin`), separating emergency halt and resume privileges (#319).
 - `loan_req`, `loan_appr`, `loan_rpy` and `interest` events now carry the loan's `asset` as a trailing field (#343). Existing positional fields are unchanged, so indexers that read by position keep working; `interest` is only emitted for base-token repayments.

@@ -280,6 +280,9 @@ pub fn propose_token_addition(env: &Env, caller: Address, token: Address) -> Res
     if storage::is_token_whitelisted(env, &token) {
         return Err(Error::TokenAlreadyWhitelisted);
     }
+    if storage::get_whitelisted_tokens(env).len() >= crate::types::MAX_WHITELISTED_TOKENS {
+        return Err(Error::TooManyWhitelistedTokens);
+    }
     validate_token(env, &token)?;
     let execution_time = env.ledger().timestamp() + TIMELOCK_DURATION;
     storage::set_pending_token_addition(env, &token, execution_time);
@@ -300,6 +303,9 @@ pub fn execute_token_addition(env: &Env, caller: Address, token: Address) -> Res
         storage::get_pending_token_addition(env, &token).ok_or(Error::NoPendingTokenAddition)?;
     if env.ledger().timestamp() < execution_time {
         return Err(Error::TimelockNotExpired);
+    }
+    if storage::get_whitelisted_tokens(env).len() >= crate::types::MAX_WHITELISTED_TOKENS {
+        return Err(Error::TooManyWhitelistedTokens);
     }
     storage::remove_pending_token_addition(env, &token);
     storage::set_token_whitelisted(env, &token, true);
