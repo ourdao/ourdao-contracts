@@ -215,3 +215,106 @@ fn copied_commitment_cannot_be_revealed_by_another_voter() {
     );
     s.client.reveal_treasury_vote(&first, &pid, &true, &salt);
 }
+
+// ==================== issue #298: commit-reveal edge cases ====================
+
+#[test]
+fn reveal_without_commit_returns_no_commitment() {
+    let s = setup(3);
+    let proposer = s.members.get(0).unwrap();
+    let voter = s.members.get(1).unwrap();
+    let dest = Address::generate(&s.env);
+
+    let pid = s.client.propose_treasury_withdrawal(
+        &proposer,
+        &300,
+        &dest,
+        &String::from_str(&s.env, "private"),
+        &true,
+    );
+
+    // Advance past commit phase into reveal phase
+    advance(&s.env, VOTING_PERIOD + 1);
+
+    // Voter never committed, attempts to reveal
+    let salt = BytesN::from_array(&s.env, &[5u8; 32]);
+    let res = s.client.try_reveal_treasury_vote(&voter, &pid, &true, &salt);
+    assert_eq!(res, Err(Ok(Error::NoCommitment)));
+}
+
+#[test]
+fn reveal_after_reveal_period_returns_voting_ended() {
+    let s = setup(3);
+    let proposer = s.members.get(0).unwrap();
+    let voter = s.members.get(1).unwrap();
+    let dest = Address::generate(&s.env);
+
+    let pid = s.client.propose_treasury_withdrawal(
+        &proposer,
+        &300,
+        &dest,
+        &String::from_str(&s.env, "private"),
+        &true,
+    );
+
+    let salt = BytesN::from_array(&s.env, &[8u8; 32]);
+    let commitment = compute_commitment(&s.env, &voter, pid, true, &salt);
+    s.client.commit_treasury_vote(&voter, &pid, &commitment);
+
+    // Advance past both commit phase AND reveal phase (reveal_end = created_at + 2 * voting_period)
+    advance(&s.env, 2 * VOTING_PERIOD + 2);
+
+    let res = s.client.try_reveal_treasury_vote(&voter, &pid, &true, &salt);
+    assert_eq!(res, Err(Ok(Error::VotingEnded)));
+}
+
+#[test]
+fn reveal_before_commit_phase_ends_returns_not_yet_revealed() {
+    let s = setup(3);
+    let proposer = s.members.get(0).unwrap();
+    let voter = s.members.get(1).unwrap();
+    let dest = Address::generate(&s.env);
+
+    let pid = s.client.propose_treasury_withdrawal(
+        &proposer,
+        &300,
+        &dest,
+        &String::from_str(&s.env, "private"),
+        &true,
+    );
+
+    let salt = BytesN::from_array(&s.env, &[8u8; 32]);
+    let commitment = compute_commitment(&s.env, &voter, pid, true, &salt);
+    s.client.commit_treasury_vote(&voter, &pid, &commitment);
+
+    // Still within commit phase
+    let res = s.client.try_reveal_treasury_vote(&voter, &pid, &true, &salt);
+    assert_eq!(res, Err(Ok(Error::NotYetRevealed)));
+}
+
+#[test]
+fn reveal_by_different_address_cannot_reveal_others_commitment() {
+    let s = setup(3);
+    let proposer = s.members.get(0).unwrap();
+    let voter1 = s.members.get(1).unwrap();
+    let voter2 = s.members.get(2).unwrap();
+    let dest = Address::generate(&s.env);
+
+    let pid = s.client.propose_treasury_withdrawal(
+        &proposer,
+        &300,
+        &dest,
+        &String::from_str(&s.env, "private"),
+        &true,
+    );
+
+    let salt = BytesN::from_array(&s.env, &[9u8; 32]);
+    let commitment = compute_commitment(&s.env, &voter1, pid, true, &salt);
+    s.client.commit_treasury_vote(&voter1, &pid, &commitment);
+
+    advance(&s.env, VOTING_PERIOD + 1);
+
+    // voter2 has no commitment
+    let res_no_commit = s.client.try_reveal_treasury_vote(&voter2, &pid, &true, &salt);
+    assert_eq!(res_no_commit, Err(Ok(Error::NoCommitment)));
+}
