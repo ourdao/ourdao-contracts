@@ -4,6 +4,17 @@ All notable changes to `ourdao-contracts` are documented here. The format follow
 
 ## [Unreleased]
 
+### Added
+- Guard proposal and treasury ID allocation with checked_add and return Error::IdOverflow upon counter exhaustion (#82).
+- Test suite proving treasury proposals execute strictly in proposal.asset, including after the asset is removed from the whitelist (#279).
+- Test suite proving register_member and staking entrypoints strictly transfer the base token and ignore other whitelisted assets (#280).
+- Expose `get_treasury_balances` view returning spendable balances for all whitelisted assets in a single call (#281).
+- Expose `get_membership_fee` and `get_total_staked` contract views returning the base token registration fee and total staked funds (#83).
+- Granular permission tests for set_pauser and revoke_pauser verifying non-admin rejection, pauser isolation from admin functions, and revoked pauser rejection (#297).
+- Comprehensive edge-case tests for commit-reveal voting covering wrong salt, reveal without commit, reveal after reveal period, and early reveal (#298).
+- Regression test verifying many tiny partial repayments sum exactly to total_repayment and transition the loan to Repaid (#300).
+- Cap the number of whitelisted tokens to MAX_WHITELISTED_TOKENS (10) and reject adding further tokens with Error::TooManyWhitelistedTokens (#282).
+
 ### Changed
 - Explicitly enforce and document that pausers cannot unpause (`admin::unpause` requires admin authorization and rejects non-admin pausers with `Error::NotAdmin`), separating emergency halt and resume privileges (#319).
 - `loan_req`, `loan_appr`, `loan_rpy` and `interest` events now carry the loan's `asset` as a trailing field (#343). Existing positional fields are unchanged, so indexers that read by position keep working; `interest` is only emitted for base-token repayments.

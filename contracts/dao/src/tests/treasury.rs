@@ -323,3 +323,131 @@ fn propose_treasury_withdrawal_rejects_self_destination() {
     );
     assert_eq!(res_asset, Err(Ok(Error::InvalidProposal)));
 }
+
+// ==================== issue #281: get_treasury_balances view ====================
+#[test]
+fn get_treasury_balances_returns_base_and_whitelisted_assets() {
+    let s = setup(3);
+    // Uninitialized error check
+    let env = Env::default();
+    let uninit_contract = env.register(OurDao, ());
+    let uninit_client = OurDaoClient::new(&env, &uninit_contract);
+    assert_eq!(
+        uninit_client.try_get_treasury_balances(),
+        Err(Ok(Error::NotInitialized))
+    );
+
+    // Initialized with 3 members paying FEE
+    let balances = s.client.get_treasury_balances();
+    assert_eq!(balances.len(), 1);
+    assert_eq!(balances.get(s.token.address.clone()), Some(3 * FEE));
+
+    // Whitelist extra token
+    let token2_admin = Address::generate(&s.env);
+    let token2 = s.env.register_stellar_asset_contract_v2(token2_admin).address();
+    s.client.propose_token_addition(&s.admin, &token2);
+    advance(&s.env, crate::admin::TIMELOCK_DURATION + 1);
+    s.client.whitelist_token(&s.admin, &token2);
+
+    // Mint token2 directly to DAO
+    let token2_client = token::Client::new(&s.env, &token2);
+    token2_client.mint(&s.client.address, &5_000);
+
+    let balances2 = s.client.get_treasury_balances();
+    assert_eq!(balances2.len(), 2);
+    assert_eq!(balances2.get(s.token.address.clone()), Some(3 * FEE));
+    assert_eq!(balances2.get(token2.clone()), Some(5_000));
+}
+
+// ==================== issue #279: execute treasury proposal strictly in proposal.asset ====================
+#[test]
+fn execute_treasury_proposal_strictly_in_proposal_asset_including_after_asset_removal() {
+    let s = setup(4); // 4 members, quorum threshold 5100 (needs 3 of 4 votes)
+    let p = s.members.get(0).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let v2 = s.members.get(2).unwrap();
+    let dest = Address::generate(&s.env);
+    let reason = String::from_str(&s.env, "grant in secondary asset");
+
+    // Whitelist asset B and fund DAO with 10_000 of asset B
+    let token_b = whitelist_second_asset(&s, 10_000);
+    let asset_b = token_b.address.clone();
+
+    // 1. Propose and execute proposal 1 in asset B
+    let pid1 = s.client.propose_withdrawal_in_asset(
+        &p,
+        &3_000,
+        &asset_b,
+        &dest,
+        &reason,
+        &false,
+    );
+
+    for voter in [&p, &v1, &v2] {
+        s.client.vote_on_treasury_proposal(voter, &pid1, &true);
+    }
+
+    let prop1 = s.client.get_treasury_proposal(&pid1).unwrap();
+    assert_eq!(prop1.status, ProposalStatus::Executed);
+    // Destination received 3,000 of asset B
+    assert_eq!(token_b.balance(&dest), 3_000);
+    // Base token balance of destination is untouched
+    assert_eq!(s.token.balance(&dest), 0);
+    // DAO treasury balance of asset B reduced to 7,000
+    assert_eq!(token_b.balance(&s.client.address), 7_000);
+
+    // 2. Propose proposal 2 in asset B while whitelisted
+    let dest2 = Address::generate(&s.env);
+    let pid2 = s.client.propose_withdrawal_in_asset(
+        &p,
+        &2_000,
+        &asset_b,
+        &dest2,
+        &reason,
+        &false,
+    );
+
+    // Admin removes asset B from the whitelist
+    s.client.remove_token(&s.admin, &asset_b);
+    assert!(!s.client.is_token_whitelisted(&asset_b));
+
+    // New proposals in asset B are now rejected
+    let res_new = s.client.try_propose_withdrawal_in_asset(
+        &p,
+        &1_000,
+        &asset_b,
+        &dest2,
+        &reason,
+        &false,
+    );
+    assert_eq!(res_new, Err(Ok(Error::TokenNotWhitelisted)));
+
+    // But existing proposal 2 can still be voted on and executed per ADR
+    for voter in [&p, &v1, &v2] {
+        s.client.vote_on_treasury_proposal(voter, &pid2, &true);
+    }
+
+    let prop2 = s.client.get_treasury_proposal(&pid2).unwrap();
+    assert_eq!(prop2.status, ProposalStatus::Executed);
+    // Destination 2 received 2,000 of asset B
+    assert_eq!(token_b.balance(&dest2), 2_000);
+    assert_eq!(s.token.balance(&dest2), 0);
+    // DAO treasury balance of asset B reduced to 5,000
+    assert_eq!(token_b.balance(&s.client.address), 5_000);
+}
+
+#[test]
+fn test_treasury_id_overflow_guard() {
+    let s = setup(1);
+    let p = s.members[0].clone();
+    let dest = soroban_sdk::Address::generate(&s.env);
+    let reason = soroban_sdk::String::from_str(&s.env, "grant");
+
+    // Drive treasury proposal counter to u32::MAX
+    s.env.as_contract(&s.client.address, || {
+        crate::storage::set_proposal_count(&s.env, crate::storage::DataKey::NextTreasuryId, u32::MAX);
+    });
+
+    let res = s.client.try_propose_withdrawal(&p, &100, &dest, &reason, &false);
+    assert_eq!(res, Err(Ok(Error::IdOverflow)));
+}

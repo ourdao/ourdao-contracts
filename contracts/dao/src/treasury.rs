@@ -56,7 +56,7 @@ pub fn propose_withdrawal_in_asset(
         return Err(Error::InsufficientTreasury);
     }
 
-    let id = storage::next_id(env, storage::DataKey::NextTreasuryId);
+    let id = storage::next_id(env, storage::DataKey::NextTreasuryId)?;
     let policy = storage::get_policy(env);
     let proposal = TreasuryProposal {
         id,

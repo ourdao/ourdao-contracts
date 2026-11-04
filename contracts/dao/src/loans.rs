@@ -138,7 +138,7 @@ pub fn request_loan_in_asset(
 
     let terms = quote_terms(env, amount, treasury);
     let now = env.ledger().timestamp();
-    let id = storage::next_id(env, storage::DataKey::NextProposalId);
+    let id = storage::next_id(env, storage::DataKey::NextProposalId)?;
     let proposal = LoanProposal {
         id,
         borrower: borrower.clone(),
@@ -525,7 +525,7 @@ pub fn repay_loan_partial(
 // Not wired to an entrypoint; kept unchanged from the pre-merge version.
 #[allow(dead_code, deprecated)]
 pub fn repay_partial(env: &Env, borrower: Address, amount: i128) -> Result<(), Error> {
-    let next_id = storage::next_id(env, storage::DataKey::NextProposalId);
+    let next_id = storage::next_id(env, storage::DataKey::NextProposalId)?;
     let mut loan_id_opt = None;
     for i in 1..next_id {
         if let Some(loan) = storage::get_loan(env, i) {

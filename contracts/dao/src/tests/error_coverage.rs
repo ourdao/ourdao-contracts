@@ -760,3 +760,34 @@ fn error_borrower_cannot_vote() {
     let result = s.client.try_vote_on_loan_proposal(&borrower, &proposal_id, &true);
     assert_eq!(result, Err(Ok(Error::BorrowerCannotVote)));
 }
+
+// TooManyWhitelistedTokens = 92
+#[test]
+fn error_too_many_whitelisted_tokens() {
+    let s = setup(1);
+    for _ in 0..9 {
+        let issuer = Address::generate(&s.env);
+        let extra = s.env.register_stellar_asset_contract_v2(issuer).address();
+        s.client.propose_token_addition(&s.admin, &extra);
+        advance(&s.env, super::common::TIMELOCK_DURATION);
+        s.client.execute_token_addition(&s.admin, &extra);
+    }
+    let issuer11 = Address::generate(&s.env);
+    let extra11 = s.env.register_stellar_asset_contract_v2(issuer11).address();
+    let result = s.client.try_propose_token_addition(&s.admin, &extra11);
+    assert_eq!(result, Err(Ok(Error::TooManyWhitelistedTokens)));
+}
+
+// IdOverflow = 93
+#[test]
+fn error_id_overflow() {
+    let s = setup(1);
+    let borrower = s.members[0].clone();
+
+    s.env.as_contract(&s.client.address, || {
+        crate::storage::set_proposal_count(&s.env, crate::storage::DataKey::NextProposalId, u32::MAX);
+    });
+
+    let result = s.client.try_request_loan(&borrower, &100i128, &None);
+    assert_eq!(result, Err(Ok(Error::IdOverflow)));
+}

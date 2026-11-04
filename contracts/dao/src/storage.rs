@@ -1,5 +1,6 @@
 use soroban_sdk::{contracttype, Address, BytesN, Env, String, Vec};
 
+use crate::error::Error;
 use crate::types::{Loan, LoanPolicy, LoanProposal, Member, PendingPolicyUpdate, TreasuryProposal};
 
 // Soroban produces one ledger every ~5 seconds.
@@ -247,10 +248,21 @@ pub fn set_active_members(env: &Env, n: u32) {
 }
 
 /// Atomically fetches and increments one of the id counters, returning the id to use.
-pub fn next_id(env: &Env, key: DataKey) -> u32 {
+/// Returns `Error::IdOverflow` if the counter reaches `u32::MAX` (#82).
+///
+/// Note on ID width: `u32` accommodates up to 4.29 billion proposals, which is more
+/// than sufficient for the operational lifetime of the DAO while maintaining efficient
+/// 4-byte storage and ABI layout shared between `LoanProposal.id` and `Loan.id`.
+pub fn next_id(env: &Env, key: DataKey) -> Result<u32, Error> {
     let current: u32 = env.storage().instance().get(&key).unwrap_or(0);
-    env.storage().instance().set(&key, &(current + 1));
-    current
+    let next = current.checked_add(1).ok_or(Error::IdOverflow)?;
+    env.storage().instance().set(&key, &next);
+    Ok(current)
+}
+
+#[cfg(test)]
+pub fn set_proposal_count(env: &Env, key: DataKey, val: u32) {
+    env.storage().instance().set(&key, &val);
 }
 
 pub fn get_proposal_count(env: &Env, key: DataKey) -> u32 {
