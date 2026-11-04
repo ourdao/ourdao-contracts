@@ -576,6 +576,39 @@ fn unstaking_during_open_loan_ballot_is_rejected() {
     );
 }
 
+// ==================== issue #280: staking strictly uses base token ====================
+#[test]
+fn staking_and_unstaking_strictly_uses_base_token() {
+    let s = setup(2);
+    // Whitelist secondary token
+    let token2_admin = Address::generate(&s.env);
+    let token2 = s.env.register_stellar_asset_contract_v2(token2_admin).address();
+    s.client.propose_token_addition(&s.admin, &token2);
+    advance(&s.env, crate::admin::TIMELOCK_DURATION + 1);
+    s.client.whitelist_token(&s.admin, &token2);
+
+    let token2_client = token::Client::new(&s.env, &token2);
+    let staker = s.members.get(0).unwrap();
+    token2_client.mint(&staker, &MINT);
+
+    let base_before = s.token.balance(&staker);
+    let token2_before = token2_client.balance(&staker);
+
+    // Stake 500
+    s.client.stake(&staker, &500);
+
+    // Base token balance drops by 500; token2 balance is completely untouched
+    assert_eq!(s.token.balance(&staker), base_before - 500);
+    assert_eq!(token2_client.balance(&staker), token2_before);
+
+    // Unstake 500
+    s.client.unstake(&staker, &500);
+
+    // Base token balance restored; token2 balance remains unchanged
+    assert_eq!(s.token.balance(&staker), base_before);
+    assert_eq!(token2_client.balance(&staker), token2_before);
+}
+
 #[test]
 fn unstaking_during_open_treasury_ballot_is_rejected() {
     let s = setup(4);

@@ -320,3 +320,61 @@ fn pending_yield_view_matches_claim_rewards_payout() {
     s.client.exit_dao(&v2);
     assert_eq!(s.token.balance(&v2) - before, share + shown);
 }
+
+// ==================== #83: get_membership_fee and get_total_staked views ====================
+#[test]
+fn uninitialized_views_return_not_initialized() {
+    let env = Env::default();
+    let contract = env.register(OurDao, ());
+    let client = OurDaoClient::new(&env, &contract);
+
+    assert_eq!(
+        client.try_get_membership_fee(),
+        Err(Ok(Error::NotInitialized))
+    );
+    assert_eq!(
+        client.try_get_total_staked(),
+        Err(Ok(Error::NotInitialized))
+    );
+}
+
+#[test]
+fn membership_fee_and_total_staked_views_reflect_state() {
+    let s = setup(3);
+    assert_eq!(s.client.get_membership_fee(), FEE);
+    assert_eq!(s.client.get_total_staked(), 0);
+
+    // Staking increases total_staked view
+    let m = s.members.get(0).unwrap();
+    s.client.stake(&m, &500);
+    assert_eq!(s.client.get_total_staked(), 500);
+}
+
+// ==================== issue #280: register_member strictly uses base token ====================
+#[test]
+fn register_member_strictly_charges_base_token() {
+    let s = setup(1);
+    // Whitelist a secondary token
+    let token2_admin = Address::generate(&s.env);
+    let token2 = s.env.register_stellar_asset_contract_v2(token2_admin).address();
+    s.client.propose_token_addition(&s.admin, &token2);
+    advance(&s.env, crate::admin::TIMELOCK_DURATION + 1);
+    s.client.whitelist_token(&s.admin, &token2);
+
+    let token2_client = token::Client::new(&s.env, &token2);
+
+    // Prospective member with both base and secondary tokens
+    let candidate = Address::generate(&s.env);
+    s.token.mint(&candidate, &MINT);
+    token2_client.mint(&candidate, &MINT);
+
+    let base_before = s.token.balance(&candidate);
+    let token2_before = token2_client.balance(&candidate);
+
+    s.client.register_member(&candidate);
+
+    // Only base token balance decreases by FEE
+    assert_eq!(s.token.balance(&candidate), base_before - FEE);
+    // Secondary whitelisted token balance is untouched
+    assert_eq!(token2_client.balance(&candidate), token2_before);
+}
