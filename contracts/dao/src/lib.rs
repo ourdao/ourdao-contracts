@@ -30,7 +30,7 @@ mod tests;
 #[cfg(all(test, feature = "bench-budget"))]
 mod bench;
 
-use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, Map, String, Vec};
 use types::{
     AssetBalance, DaoSummary, SeedDocEntry, SeedNameEntry, SeedStakeEntry, SeedYieldEntry,
 };
@@ -464,6 +464,20 @@ impl OurDao {
         Ok(util::treasury_balance(&env))
     }
 
+    /// Spendable treasury balances across all whitelisted assets (#281).
+    ///
+    /// Returns a map keyed by asset address, containing the base token first
+    /// (with staked funds excluded) and each whitelisted extra token.
+    pub fn get_treasury_balances(env: Env) -> Result<Map<Address, i128>, Error> {
+        util::require_initialized(&env)?;
+        let mut map = Map::new(&env);
+        for asset in storage::get_whitelisted_tokens(&env).iter() {
+            let balance = util::treasury_balance_in_asset(&env, &asset);
+            map.set(asset, balance);
+        }
+        Ok(map)
+    }
+
     /// Returns the treasury balance held in a specific whitelisted asset.
     pub fn get_treasury_balance_in_asset(env: Env, asset: Address) -> i128 {
         util::treasury_balance_in_asset(&env, &asset)
@@ -485,6 +499,21 @@ impl OurDao {
     pub fn get_token(env: Env) -> Result<Address, Error> {
         util::require_initialized(&env)?;
         Ok(storage::get_token(&env))
+    }
+
+    /// Returns the one-time membership registration fee in base token units (#83).
+    ///
+    /// Note: This is the actual registration fee charged on `register_member`.
+    /// `LoanPolicy.membership_contribution` is a separate policy parameter.
+    pub fn get_membership_fee(env: Env) -> Result<i128, Error> {
+        util::require_initialized(&env)?;
+        Ok(storage::get_membership_fee(&env))
+    }
+
+    /// Returns the total amount of base tokens currently staked across all members (#83).
+    pub fn get_total_staked(env: Env) -> Result<i128, Error> {
+        util::require_initialized(&env)?;
+        Ok(storage::get_total_staked(&env))
     }
 
     /// Whether `initialize` has run. Clients should check this before relying

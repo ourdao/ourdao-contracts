@@ -323,3 +323,38 @@ fn propose_treasury_withdrawal_rejects_self_destination() {
     );
     assert_eq!(res_asset, Err(Ok(Error::InvalidProposal)));
 }
+
+// ==================== issue #281: get_treasury_balances view ====================
+#[test]
+fn get_treasury_balances_returns_base_and_whitelisted_assets() {
+    let s = setup(3);
+    // Uninitialized error check
+    let env = Env::default();
+    let uninit_contract = env.register(OurDao, ());
+    let uninit_client = OurDaoClient::new(&env, &uninit_contract);
+    assert_eq!(
+        uninit_client.try_get_treasury_balances(),
+        Err(Ok(Error::NotInitialized))
+    );
+
+    // Initialized with 3 members paying FEE
+    let balances = s.client.get_treasury_balances();
+    assert_eq!(balances.len(), 1);
+    assert_eq!(balances.get(s.token.address.clone()), Some(3 * FEE));
+
+    // Whitelist extra token
+    let token2_admin = Address::generate(&s.env);
+    let token2 = s.env.register_stellar_asset_contract_v2(token2_admin).address();
+    s.client.propose_token_addition(&s.admin, &token2);
+    advance(&s.env, crate::admin::TIMELOCK_DURATION + 1);
+    s.client.whitelist_token(&s.admin, &token2);
+
+    // Mint token2 directly to DAO
+    let token2_client = token::Client::new(&s.env, &token2);
+    token2_client.mint(&s.client.address, &5_000);
+
+    let balances2 = s.client.get_treasury_balances();
+    assert_eq!(balances2.len(), 2);
+    assert_eq!(balances2.get(s.token.address.clone()), Some(3 * FEE));
+    assert_eq!(balances2.get(token2.clone()), Some(5_000));
+}
