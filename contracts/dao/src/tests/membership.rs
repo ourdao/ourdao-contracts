@@ -320,3 +320,32 @@ fn pending_yield_view_matches_claim_rewards_payout() {
     s.client.exit_dao(&v2);
     assert_eq!(s.token.balance(&v2) - before, share + shown);
 }
+
+// ==================== #83: get_membership_fee and get_total_staked views ====================
+#[test]
+fn uninitialized_views_return_not_initialized() {
+    let env = Env::default();
+    let contract = env.register(OurDao, ());
+    let client = OurDaoClient::new(&env, &contract);
+
+    assert_eq!(
+        client.try_get_membership_fee(),
+        Err(Ok(Error::NotInitialized))
+    );
+    assert_eq!(
+        client.try_get_total_staked(),
+        Err(Ok(Error::NotInitialized))
+    );
+}
+
+#[test]
+fn membership_fee_and_total_staked_views_reflect_state() {
+    let s = setup(3);
+    assert_eq!(s.client.get_membership_fee(), FEE);
+    assert_eq!(s.client.get_total_staked(), 0);
+
+    // Staking increases total_staked view
+    let m = s.members.get(0).unwrap();
+    s.client.stake(&m, &500);
+    assert_eq!(s.client.get_total_staked(), 500);
+}

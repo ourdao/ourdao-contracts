@@ -487,6 +487,21 @@ impl OurDao {
         Ok(storage::get_token(&env))
     }
 
+    /// Returns the one-time membership registration fee in base token units (#83).
+    ///
+    /// Note: This is the actual registration fee charged on `register_member`.
+    /// `LoanPolicy.membership_contribution` is a separate policy parameter.
+    pub fn get_membership_fee(env: Env) -> Result<i128, Error> {
+        util::require_initialized(&env)?;
+        Ok(storage::get_membership_fee(&env))
+    }
+
+    /// Returns the total amount of base tokens currently staked across all members (#83).
+    pub fn get_total_staked(env: Env) -> Result<i128, Error> {
+        util::require_initialized(&env)?;
+        Ok(storage::get_total_staked(&env))
+    }
+
     /// Whether `initialize` has run. Clients should check this before relying
     /// on any other view: every state-reading view returns
     /// `Error::NotInitialized` on an uninitialized contract rather than

@@ -63,7 +63,7 @@ This repository is one of three that make up OurDAO:
 
 ### Uninitialized contracts
 
-Every view that reads DAO configuration or the registry (`get_token`, `get_admins`, `is_admin`, `get_loan_policy`, `get_consensus_threshold`, `get_treasury_balance`, `calculate_loan_terms`, `calculate_exit_share`, `resolve_name`, `name_of`, `get_document`) returns `Error::NotInitialized` before `initialize` has run, instead of trapping or returning an ambiguous `None`. Call `is_initialized()` first to probe an unknown address. Per-record lookups such as `get_member` and `get_loan` still return `None` for a missing record.
+Every view that reads DAO configuration or the registry (`get_token`, `get_admins`, `is_admin`, `get_loan_policy`, `get_consensus_threshold`, `get_treasury_balance`, `get_membership_fee`, `get_total_staked`, `calculate_loan_terms`, `calculate_exit_share`, `resolve_name`, `name_of`, `get_document`) returns `Error::NotInitialized` before `initialize` has run, instead of trapping or returning an ambiguous `None`. Call `is_initialized()` first to probe an unknown address. Per-record lookups such as `get_member` and `get_loan` still return `None` for a missing record.
 
 ## Additional feature modules
 
@@ -198,7 +198,7 @@ The *k*-th bonus vote starts at `k² × 100` staked tokens, so the thresholds ar
 | `attach_document(caller, kind, proposal_id, content_hash)` | Anchors an off-chain content hash (e.g. IPFS CID) to a real loan/treasury proposal. |
 | `get_document(kind, proposal_id) -> Option<Bytes>` | View. |
 
-**Views** — `get_member`, `get_loan`, `get_loan_proposal` (auto-refreshes expired phase), `get_treasury_proposal`, `get_loan_policy`, `get_admins`, `is_admin`, `is_member`, `is_eligible_for_loan`, `get_treasury_balance`, `get_treasury_balance_in_asset(asset)`, `is_token_whitelisted(token)`, `get_whitelisted_tokens`, `get_total_members`, `get_active_members`, `get_consensus_threshold`, `get_token`, `get_dao_summary` (all headline state in one call), `is_paused`, `get_stake`, `get_pending_yield`, `calculate_loan_terms`, `calculate_exit_share`, `has_voted(kind, proposal_id, voter)`.
+**Views** — `get_member`, `get_loan`, `get_loan_proposal` (auto-refreshes expired phase), `get_treasury_proposal`, `get_loan_policy`, `get_admins`, `is_admin`, `is_member`, `is_eligible_for_loan`, `get_treasury_balance`, `get_treasury_balance_in_asset(asset)`, `is_token_whitelisted(token)`, `get_whitelisted_tokens`, `get_total_members`, `get_active_members`, `get_consensus_threshold`, `get_token`, `get_membership_fee`, `get_total_staked`, `get_dao_summary` (all headline state in one call), `is_paused`, `get_stake`, `get_pending_yield`, `calculate_loan_terms`, `calculate_exit_share`, `has_voted(kind, proposal_id, voter)`.
 
 ## Event catalog
 
