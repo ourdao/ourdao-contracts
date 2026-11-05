@@ -1,5 +1,6 @@
 use soroban_sdk::{contracttype, Address, BytesN, Env, String, Vec};
 
+use crate::error::Error;
 use crate::types::{Loan, LoanPolicy, LoanProposal, Member, PendingPolicyUpdate, TreasuryProposal};
 
 // Soroban produces one ledger every ~5 seconds.
@@ -247,10 +248,21 @@ pub fn set_active_members(env: &Env, n: u32) {
 }
 
 /// Atomically fetches and increments one of the id counters, returning the id to use.
-pub fn next_id(env: &Env, key: DataKey) -> u32 {
+/// Returns `Error::IdOverflow` if the counter reaches `u32::MAX` (#82).
+///
+/// Note on ID width: `u32` accommodates up to 4.29 billion proposals, which is more
+/// than sufficient for the operational lifetime of the DAO while maintaining efficient
+/// 4-byte storage and ABI layout shared between `LoanProposal.id` and `Loan.id`.
+pub fn next_id(env: &Env, key: DataKey) -> Result<u32, Error> {
     let current: u32 = env.storage().instance().get(&key).unwrap_or(0);
-    env.storage().instance().set(&key, &(current + 1));
-    current
+    let next = current.checked_add(1).ok_or(Error::IdOverflow)?;
+    env.storage().instance().set(&key, &next);
+    Ok(current)
+}
+
+#[cfg(test)]
+pub fn set_proposal_count(env: &Env, key: DataKey, val: u32) {
+    env.storage().instance().set(&key, &val);
 }
 
 pub fn get_proposal_count(env: &Env, key: DataKey) -> u32 {
@@ -440,7 +452,12 @@ pub fn set_yield_snapshot(env: &Env, addr: &Address, value: i128) {
 // ---------- native-swap module accessors ----------
 
 pub fn get_doc(env: &Env, kind: ProposalKind, id: u32) -> Option<soroban_sdk::Bytes> {
-    env.storage().persistent().get(&DataKey::Doc(kind, id))
+    let key = DataKey::Doc(kind, id);
+    let d = env.storage().persistent().get(&key);
+    if d.is_some() {
+        extend_persistent(env, &key);
+    }
+    d
 }
 
 pub fn set_doc(env: &Env, kind: ProposalKind, id: u32, hash: &soroban_sdk::Bytes) {
@@ -450,7 +467,12 @@ pub fn set_doc(env: &Env, kind: ProposalKind, id: u32, hash: &soroban_sdk::Bytes
 }
 
 pub fn get_name_owner(env: &Env, name: &String) -> Option<Address> {
-    env.storage().persistent().get(&DataKey::Name(name.clone()))
+    let key = DataKey::Name(name.clone());
+    let o = env.storage().persistent().get(&key);
+    if o.is_some() {
+        extend_persistent(env, &key);
+    }
+    o
 }
 
 pub fn set_name(env: &Env, name: &String, owner: &Address) {
@@ -463,15 +485,21 @@ pub fn set_name(env: &Env, name: &String, owner: &Address) {
 }
 
 pub fn get_name_of(env: &Env, owner: &Address) -> Option<String> {
-    env.storage()
-        .persistent()
-        .get(&DataKey::NameOf(owner.clone()))
+    let key = DataKey::NameOf(owner.clone());
+    let n = env.storage().persistent().get(&key);
+    if n.is_some() {
+        extend_persistent(env, &key);
+    }
+    n
 }
 
 pub fn get_commit(env: &Env, id: u32, voter: &Address) -> Option<BytesN<32>> {
-    env.storage()
-        .persistent()
-        .get(&DataKey::Commit(id, voter.clone()))
+    let key = DataKey::Commit(id, voter.clone());
+    let c = env.storage().persistent().get(&key);
+    if c.is_some() {
+        extend_persistent(env, &key);
+    }
+    c
 }
 
 pub fn set_commit(env: &Env, id: u32, voter: &Address, commitment: &BytesN<32>) {

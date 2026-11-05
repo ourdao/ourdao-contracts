@@ -150,3 +150,104 @@ fn ttl_extended_for_name_on_write() {
     });
     assert_eq!(ttl_owner, PERSISTENT_BUMP);
 }
+
+#[test]
+fn ttl_extended_for_doc_on_read() {
+    let s = setup(1);
+    let borrower = s.members.get(0).unwrap();
+    let pid = s.client.request_loan(&borrower, &500, &None);
+
+    let doc_hash = Bytes::from_slice(
+        &s.env,
+        b"ipfs://QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco",
+    );
+    s.client
+        .attach_document(&borrower, &ProposalKind::Loan, &pid, &doc_hash);
+
+    let key = DataKey::Doc(ProposalKind::Loan, pid);
+
+    // Advance ledger sequence past the threshold
+    let advance_ledgers = DAY_IN_LEDGERS + 10;
+    s.env.ledger().with_mut(|li| {
+        li.sequence_number += advance_ledgers;
+    });
+    let ttl_after_advance = s.env.as_contract(&s.client.address, || {
+        s.env.storage().persistent().get_ttl(&key)
+    });
+    assert_eq!(ttl_after_advance, PERSISTENT_BUMP - advance_ledgers);
+
+    // Reading the document extends the TTL back to PERSISTENT_BUMP (#81)
+    let doc = s.client.get_document(&ProposalKind::Loan, &pid);
+    assert_eq!(doc, Some(doc_hash));
+    let ttl_after_read = s.env.as_contract(&s.client.address, || {
+        s.env.storage().persistent().get_ttl(&key)
+    });
+    assert_eq!(ttl_after_read, PERSISTENT_BUMP);
+}
+
+#[test]
+fn ttl_extended_for_name_on_read() {
+    let s = setup(1);
+    let member = s.members.get(0).unwrap();
+    let name = String::from_str(&s.env, "alice");
+
+    s.client.register_name(&member, &name);
+
+    let name_key = DataKey::Name(name.clone());
+
+    // Advance ledger sequence past the threshold
+    let advance_ledgers = DAY_IN_LEDGERS + 10;
+    s.env.ledger().with_mut(|li| {
+        li.sequence_number += advance_ledgers;
+    });
+    let ttl_after_advance = s.env.as_contract(&s.client.address, || {
+        s.env.storage().persistent().get_ttl(&name_key)
+    });
+    assert_eq!(ttl_after_advance, PERSISTENT_BUMP - advance_ledgers);
+
+    // Resolving the name extends the TTL back to PERSISTENT_BUMP (#81)
+    let resolved = s.client.resolve_name(&name);
+    assert_eq!(resolved, Some(member));
+    let ttl_after_read = s.env.as_contract(&s.client.address, || {
+        s.env.storage().persistent().get_ttl(&name_key)
+    });
+    assert_eq!(ttl_after_read, PERSISTENT_BUMP);
+}
+
+#[test]
+fn ttl_extended_for_commit_on_read() {
+    let s = setup(3);
+    let proposer = s.members.get(0).unwrap();
+    let voter = s.members.get(1).unwrap();
+    let dest = Address::generate(&s.env);
+    let reason = String::from_str(&s.env, "private withdrawal");
+
+    let pid = s
+        .client
+        .propose_treasury_withdrawal(&proposer, &500, &dest, &reason, &true);
+
+    let commitment = BytesN::from_array(&s.env, &[42u8; 32]);
+    s.client.commit_treasury_vote(&voter, &pid, &commitment);
+
+    let key = DataKey::Commit(pid, voter.clone());
+
+    // Advance ledger sequence past the threshold
+    let advance_ledgers = DAY_IN_LEDGERS + 10;
+    s.env.ledger().with_mut(|li| {
+        li.sequence_number += advance_ledgers;
+    });
+    let ttl_after_advance = s.env.as_contract(&s.client.address, || {
+        s.env.storage().persistent().get_ttl(&key)
+    });
+    assert_eq!(ttl_after_advance, PERSISTENT_BUMP - advance_ledgers);
+
+    // Reading the commitment extends TTL back to PERSISTENT_BUMP (#81)
+    let read_commit = s.env.as_contract(&s.client.address, || {
+        crate::storage::get_commit(&s.env, pid, &voter)
+    });
+    assert_eq!(read_commit, Some(commitment));
+    let ttl_after_read = s.env.as_contract(&s.client.address, || {
+        s.env.storage().persistent().get_ttl(&key)
+    });
+    assert_eq!(ttl_after_read, PERSISTENT_BUMP);
+}
