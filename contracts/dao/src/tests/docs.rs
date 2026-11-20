@@ -86,9 +86,27 @@ fn attach_document_treasury_proposal_proposer_and_non_proposer() {
     assert!(res.is_ok());
     assert_eq!(s.client.get_document(&ProposalKind::Treasury, &pid), Some(cid.clone()));
 
-    // Document can be overwritten again mid-voting
+    // It may still be replaced before anybody has voted.
     let cid2 = Bytes::from_array(&s.env, b"QmTreasuryProposalCid456");
     let res2 = s.client.try_attach_document(&proposer, &ProposalKind::Treasury, &pid, &cid2);
     assert!(res2.is_ok());
-    assert_eq!(s.client.get_document(&ProposalKind::Treasury, &pid), Some(cid2));
+    assert_eq!(
+        s.client.get_document(&ProposalKind::Treasury, &pid),
+        Some(cid2.clone())
+    );
+
+    // Once voting begins, the evidence becomes immutable just like a loan
+    // document after its editing phase.
+    s.client
+        .vote_on_treasury_proposal(&stranger, &pid, &true);
+    let cid3 = Bytes::from_array(&s.env, b"QmTreasuryProposalCid789");
+    assert_eq!(
+        s.client
+            .try_attach_document(&proposer, &ProposalKind::Treasury, &pid, &cid3),
+        Err(Ok(Error::NotInEditingPhase))
+    );
+    assert_eq!(
+        s.client.get_document(&ProposalKind::Treasury, &pid),
+        Some(cid2)
+    );
 }

@@ -54,10 +54,23 @@ pub fn attach_document(
         return Err(Error::NotProposalOwner);
     }
     // #59 — Do not allow silent swaps of the document once voting is open.
-    if let ProposalKind::Loan = kind {
-        if let Some(p) = storage::get_loan_proposal(env, proposal_id) {
-            if p.phase != ProposalPhase::Editing {
-                return Err(Error::NotInEditingPhase);
+    match kind {
+        ProposalKind::Loan => {
+            if let Some(p) = storage::get_loan_proposal(env, proposal_id) {
+                if p.phase != ProposalPhase::Editing {
+                    return Err(Error::NotInEditingPhase);
+                }
+            }
+        }
+        ProposalKind::Treasury => {
+            // Treasury proposals do not have an Editing phase. The document
+            // therefore remains editable only until the first vote is cast.
+            // Once members have voted, changing the evidence they voted on
+            // would silently invalidate the governance record (#514).
+            if let Some(p) = storage::get_treasury_proposal(env, proposal_id) {
+                if p.votes_cast > 0 {
+                    return Err(Error::NotInEditingPhase);
+                }
             }
         }
     }
