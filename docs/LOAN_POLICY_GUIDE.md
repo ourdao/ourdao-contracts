@@ -272,6 +272,33 @@ After `due_time + default_grace_period`, anyone may call
 The penalty does **not** repay missing principal and is not a substitute for
 liquidity reserves. It is a governance deterrent and loss-allocation tool.
 
+### Worked example: partial repayment followed by default
+
+The loan-side overdue fee and the member-side contribution slash are independent.
+Assume, for simple arithmetic, a loan whose current `total_repayment` is 1,100,
+a member contribution of 1,000, and `default_penalty_bps = 2_000` (20%).
+
+1. Before the due date, the borrower pays 330 (30% of 1,100) through
+   `loans::repay_loan_internal`. Because the payment is on time, no overdue
+   fee is added. The remaining loan balance is 770.
+2. The loan later passes `due_time + default_grace_period` with no further
+   repayment. Calling `loans::mark_loan_defaulted` marks the loan defaulted
+   but does **not** add a loan-side late fee. The unpaid loan balance remains
+   770.
+3. `loans::mark_loan_defaulted` separately applies the member-side slash:
+   `ceil(1_000 × 2_000 / 10_000) = 200`. The member contribution falls from
+   1,000 to 800. That 200 is an economic/governance penalty; it is not recorded
+   as a repayment of the remaining 770.
+
+If the borrower instead attempts another repayment **after** the due date,
+`loans::repay_loan_internal` first adds the overdue fee to the then-outstanding
+loan balance. With 770 outstanding and a 20% penalty, the fee is
+`ceil(770 × 20%) = 154`, so the amount due becomes 924 before that late
+payment is applied. If the loan is later marked defaulted, the contribution
+slash above still applies independently. In other words, a late repayment can
+increase loan debt, while defaulting can also reduce the member's contribution;
+neither mechanism substitutes for the other.
+
 | Penalty | Member contribution | Amount slashed | Contribution remaining |
 |---:|---:|---:|---:|
 | 10% | 1,000 | 100 | 900 |

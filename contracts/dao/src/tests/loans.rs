@@ -1310,4 +1310,65 @@ fn overdue_penalty_tested_across_partial_payments() {
     let loan_after_second = s.client.get_loan(&pid).unwrap();
     assert_eq!(loan_after_second.amount_repaid, 200);
 }
+
+// Issue #515: partial repayment and default penalties are independent mechanisms.
+#[test]
+fn partial_repayment_before_due_then_default_only_slashes_contribution() {
+    let s = setup(3);
+    let borrower = s.members.get(0).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let v2 = s.members.get(2).unwrap();
+
+    let pid = s.client.request_loan(&borrower, &500, &None);
+    advance(&s.env, EDITING + 1);
+    s.client.vote_on_loan_proposal(&v1, &pid, &true);
+    s.client.vote_on_loan_proposal(&v2, &pid, &true);
+
+    let original = s.client.get_loan(&pid).unwrap();
+    let partial = original.total_repayment * 30 / 100;
+    s.client.repay_loan_partial(&borrower, &pid, &partial);
+
+    let after_partial = s.client.get_loan(&pid).unwrap();
+    assert_eq!(after_partial.amount_repaid, partial);
+    assert_eq!(after_partial.total_repayment, original.total_repayment);
+
+    let contribution_before = s.client.get_member(&borrower).unwrap().contribution;
+    advance(&s.env, LOAN_DURATION + 1);
+    s.client.mark_loan_defaulted(&pid);
+
+    let defaulted = s.client.get_loan(&pid).unwrap();
+    assert_eq!(defaulted.total_repayment, original.total_repayment);
+    let expected_slash = (contribution_before * 2_000 + 10_000 - 1) / 10_000;
+    assert_eq!(
+        s.client.get_member(&borrower).unwrap().contribution,
+        contribution_before - expected_slash
+    );
+}
+
+#[test]
+fn post_due_partial_repayment_adds_late_fee_before_payment() {
+    let s = setup(3);
+    let borrower = s.members.get(0).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let v2 = s.members.get(2).unwrap();
+
+    let pid = s.client.request_loan(&borrower, &500, &None);
+    advance(&s.env, EDITING + 1);
+    s.client.vote_on_loan_proposal(&v1, &pid, &true);
+    s.client.vote_on_loan_proposal(&v2, &pid, &true);
+
+    let before = s.client.get_loan(&pid).unwrap();
+    advance(&s.env, LOAN_DURATION + 1);
+    s.client.repay_loan_partial(&borrower, &pid, &100);
+
+    let after = s.client.get_loan(&pid).unwrap();
+    let expected_fee =
+        (before.total_repayment * 2_000 + 10_000 - 1) / 10_000;
+    assert_eq!(
+        after.total_repayment,
+        before.total_repayment + expected_fee
+    );
+    assert_eq!(after.amount_repaid, 100);
+}
+
 }
