@@ -5,6 +5,7 @@ All notable changes to `ourdao-contracts` are documented here. The format follow
 ## [Unreleased]
 
 ### Changed
+- Documented and regression-tested that voting weight is independent of a member's contribution (#509).
 - Explicitly enforce and document that pausers cannot unpause (`admin::unpause` requires admin authorization and rejects non-admin pausers with `Error::NotAdmin`), separating emergency halt and resume privileges (#319).
 - `loan_req`, `loan_appr`, `loan_rpy` and `interest` events now carry the loan's `asset` as a trailing field (#343). Existing positional fields are unchanged, so indexers that read by position keep working; `interest` is only emitted for base-token repayments.
 - `exit_dao` / `calculate_exit_share` are now O(1): a maintained `ActiveContributions` total replaces the per-member scan (#353).
