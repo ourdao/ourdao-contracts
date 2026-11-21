@@ -22,6 +22,25 @@ The testnet DAO also holds a second test asset, `OURTESTB`, so multi-token flows
 |---------|---|---|---|
 | Latest | TBD | Not yet deployed | - |
 
+## Deployment record template
+
+Copy this row for each deployment and replace every placeholder. Record the initialization arguments passed to the contract, including all initial admins, consensus threshold, membership fee, base token, and loan policy.
+
+| Network | Release/tag | Contract ID | WASM SHA-256 | Git commit | Initialization parameters | Deployed (UTC) | Deployment transaction |
+|---|---|---|---|---|---|---|---|
+| `<network>` | `vX.Y.Z` | `<contract-id>` | `<64-character hash>` | `<commit SHA>` | `admins=...; threshold=...; membership_fee=...; base_token=...; policy=...` | `YYYY-MM-DD HH:MM` | `<transaction hash or URL>` |
+
+Use the hash printed by `scripts/build-reproducible.sh`, not a hash from an unverified local build. The script reports both build hashes and ends with `reproducible build verified: <hash>` only when they match; record that hash in the table.
+
+## Post-deployment checklist
+
+- [ ] Confirm the release tag and commit are the intended versions for the target network.
+- [ ] Run `./scripts/build-reproducible.sh`; confirm build A and build B hashes match and copy the verified SHA-256 into the deployment record.
+- [ ] Confirm the initialization arguments (admins, threshold, membership fee, base token, and policy) are correct before submitting the deployment.
+- [ ] Save the successful deployment transaction and contract ID, then query the contract on the same network (for example, `stellar contract info --id <CONTRACT_ID> --network testnet`).
+- [ ] Read back the contract version and configuration using the available contract views; confirm they match the release and recorded initialization parameters.
+- [ ] Add or update the deployment row with the network, release, contract ID, verified WASM hash, commit, initialization parameters, UTC timestamp, and transaction reference.
+
 ## Verification
 
 To verify a deployed contract matches a GitHub release:
