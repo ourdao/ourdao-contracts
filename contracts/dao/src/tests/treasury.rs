@@ -335,3 +335,39 @@ fn get_treasury_balance_in_asset_works_for_non_whitelisted_token() {
     let bal = s.client.get_treasury_balance_in_asset(&other_sac.address());
     assert_eq!(bal, 0);
 }
+
+
+// Issue #279: an approved treasury proposal remains bound to its original asset.
+#[test]
+fn treasury_execution_uses_proposal_asset_after_whitelist_removal() {
+    let s = setup(3);
+    let proposer = s.members.get(0).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let v2 = s.members.get(2).unwrap();
+    let dest = Address::generate(&s.env);
+    let reason = String::from_str(&s.env, "asset-specific grant");
+    let asset = whitelist_second_asset(&s, 5_000);
+    let base_before = s.token.balance(&dest);
+
+    let pid = s.client.propose_withdrawal_in_asset(
+        &proposer,
+        &1_000,
+        &asset.address,
+        &dest,
+        &reason,
+        &false,
+    );
+
+    // Whitelist membership controls new proposals, not the asset already
+    // committed into an existing proposal.
+    s.client.remove_token(&s.admin, &asset.address);
+    assert!(!s.client.is_token_whitelisted(&asset.address));
+
+    s.client.vote_on_treasury_proposal(&v1, &pid, &true);
+    s.client.vote_on_treasury_proposal(&v2, &pid, &true);
+
+    let done = s.client.get_treasury_proposal(&pid).unwrap();
+    assert_eq!(done.status, ProposalStatus::Executed);
+    assert_eq!(asset.balance(&dest), 1_000);
+    assert_eq!(s.token.balance(&dest), base_before);
+}
