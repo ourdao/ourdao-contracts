@@ -32,6 +32,11 @@ pub fn stake(env: &Env, member: Address, amount: i128) -> Result<(), Error> {
     );
     storage::extend_instance(env);
 
+    // Staking is always denominated in the DAO's configured base token.
+    // Move the principal into the DAO contract after accounting writes; a
+    // failed transfer reverts the whole Soroban transaction.
+    util::token_client(env).transfer(&member, &util::contract_address(env), &amount);
+
     let voting_weight = util::voting_weight(env, &member);
     env.events().publish(
         (symbol_short!("staked"),),
@@ -119,6 +124,10 @@ pub fn unstake(env: &Env, member: Address, amount: i128) -> Result<(), Error> {
     storage::set_stake(env, &member, new_stake);
     storage::set_total_staked(env, storage::get_total_staked(env) - amount);
     storage::extend_instance(env);
+
+    // Return staked principal in the same configured base token. Whitelisted
+    // treasury assets never participate in staking.
+    util::token_client(env).transfer(&util::contract_address(env), &member, &amount);
 
     let voting_weight = util::voting_weight(env, &member);
     env.events().publish(

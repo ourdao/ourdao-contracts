@@ -403,3 +403,22 @@ fn calculate_exit_share_for_unregistered_address() {
     assert_eq!(s.client.calculate_exit_share(&unknown), 0);
 }
 }
+
+
+// Issue #280: membership contribution always uses the configured base token.
+#[test]
+fn membership_fee_ignores_whitelisted_non_base_assets() {
+    let s = setup(1);
+    let second = whitelist_second_asset(&s, 0);
+    let member = Address::generate(&s.env);
+    soroban_sdk::token::StellarAssetClient::new(&s.env, &s.token.address)
+        .mint(&member, &MINT);
+    mint_asset(&s, &second.address, &member, MINT);
+
+    let base_before = s.token.balance(&member);
+    let second_before = second.balance(&member);
+    s.client.register_member(&member);
+
+    assert_eq!(s.token.balance(&member), base_before - FEE);
+    assert_eq!(second.balance(&member), second_before);
+}

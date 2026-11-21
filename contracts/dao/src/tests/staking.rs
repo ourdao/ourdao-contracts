@@ -619,3 +619,20 @@ fn unstaking_during_unrevealed_private_commitment_is_rejected() {
         Err(Ok(Error::HasActiveLoan))
     );
 }
+
+
+// Issue #280: staking always transfers the configured base token.
+#[test]
+fn staking_ignores_whitelisted_non_base_assets() {
+    let s = setup(1);
+    let member = s.members.get(0).unwrap();
+    let second = whitelist_second_asset(&s, 0);
+    mint_asset(&s, &second.address, &member, 10_000);
+
+    let base_before = s.token.balance(&member);
+    let second_before = second.balance(&member);
+    s.client.stake(&member, &400);
+
+    assert_eq!(s.token.balance(&member), base_before - 400);
+    assert_eq!(second.balance(&member), second_before);
+}
