@@ -96,4 +96,6 @@ pub enum Error {
     TooManyOpenProposals = 90,
     /// A borrower cannot vote on their own loan proposal (#327).
     BorrowerCannotVote = 91,
+    /// The treasury asset whitelist has reached its bounded maximum (#282).
+    WhitelistFull = 92,
 }

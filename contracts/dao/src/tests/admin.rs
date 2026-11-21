@@ -865,3 +865,32 @@ fn removed_token_balance_reporting() {
     assert_eq!(s.client.get_treasury_balance_in_asset(&other_token), 0);
 }
 }
+
+
+// Issue #282: the whitelist is bounded so views and exit-basket iteration stay affordable.
+#[test]
+fn token_whitelist_rejects_eleventh_asset() {
+    let s = setup(1);
+
+    // Base token counts as the first accepted asset; add nine extras to reach 10.
+    for _ in 0..9 {
+        let asset = s
+            .env
+            .register_stellar_asset_contract_v2(Address::generate(&s.env))
+            .address();
+        s.client.propose_token_addition(&s.admin, &asset);
+        advance(&s.env, TIMELOCK_DURATION);
+        s.client.execute_token_addition(&s.admin, &asset);
+    }
+    assert_eq!(s.client.get_whitelisted_tokens().len(), 10);
+
+    let eleventh = s
+        .env
+        .register_stellar_asset_contract_v2(Address::generate(&s.env))
+        .address();
+    assert_eq!(
+        s.client.try_propose_token_addition(&s.admin, &eleventh),
+        Err(Ok(Error::WhitelistFull))
+    );
+    assert_eq!(s.client.get_whitelisted_tokens().len(), 10);
+}
