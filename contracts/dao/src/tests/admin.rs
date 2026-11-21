@@ -1,4 +1,5 @@
-use soroban_sdk::testutils::Address as _;
+use soroban_sdk::testutils::{Address as _, Events as _};
+use soroban_sdk::xdr::{ContractEventBody, ScVal};
 use soroban_sdk::{Address, Bytes, BytesN, Env, String, Symbol, Vec};
 
 use super::common::*;
@@ -864,4 +865,58 @@ fn removed_token_balance_reporting() {
     // get_treasury_balance_in_asset reports the token balance accurately
     assert_eq!(s.client.get_treasury_balance_in_asset(&other_token), 0);
 }
+}
+
+
+// Issue #284: whitelist lifecycle events identify both proposal and actor.
+#[test]
+fn token_add_and_remove_events_include_proposal_id_and_caller() {
+    let s = setup(1);
+    let asset = s
+        .env
+        .register_stellar_asset_contract_v2(Address::generate(&s.env))
+        .address();
+
+    s.client.propose_token_addition(&s.admin, &asset);
+    advance(&s.env, TIMELOCK_DURATION);
+    s.client.execute_token_addition(&s.admin, &asset);
+
+    let add_events = s.env.events().all();
+    let add_event = add_events
+        .events()
+        .iter()
+        .rev()
+        .find(|event| {
+            let ContractEventBody::V0(body) = &event.body;
+            matches!(body.topics.first(), Some(ScVal::Symbol(sym)) if sym.0.to_utf8_string_lossy() == "tok_add")
+        })
+        .expect("tok_add event");
+    let ContractEventBody::V0(add_body) = &add_event.body;
+    let ScVal::Vec(Some(add_data)) = &add_body.data else {
+        panic!("unexpected tok_add payload");
+    };
+    assert_eq!(add_data.len(), 3);
+    assert_eq!(add_data[0], ScVal::U32(0));
+    assert!(matches!(&add_data[1], ScVal::Address(_)));
+    assert!(matches!(&add_data[2], ScVal::Address(_)));
+
+    s.client.remove_token(&s.admin, &asset);
+    let remove_events = s.env.events().all();
+    let remove_event = remove_events
+        .events()
+        .iter()
+        .rev()
+        .find(|event| {
+            let ContractEventBody::V0(body) = &event.body;
+            matches!(body.topics.first(), Some(ScVal::Symbol(sym)) if sym.0.to_utf8_string_lossy() == "tok_rem")
+        })
+        .expect("tok_rem event");
+    let ContractEventBody::V0(remove_body) = &remove_event.body;
+    let ScVal::Vec(Some(remove_data)) = &remove_body.data else {
+        panic!("unexpected tok_rem payload");
+    };
+    assert_eq!(remove_data.len(), 3);
+    assert_eq!(remove_data[0], ScVal::U32(0));
+    assert!(matches!(&remove_data[1], ScVal::Address(_)));
+    assert!(matches!(&remove_data[2], ScVal::Address(_)));
 }

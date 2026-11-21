@@ -40,6 +40,8 @@ pub(crate) enum DataKey {
     NextTreasuryId,
     TotalStaked,
     PendingPolicyUpdate,
+    /// Monotonic id for token-whitelist governance proposals/events (#284).
+    NextTokenProposalId,
 
     // ---- per-entity (persistent storage) ----
     Member(Address),
@@ -75,6 +77,8 @@ pub(crate) enum DataKey {
     WhitelistedTokens,
     /// Earliest timestamp a proposed asset addition may be executed.
     PendingTokenAddition(Address),
+    /// Stable proposal id assigned when an extra token is first proposed.
+    TokenProposalId(Address),
     /// Asset a loan proposal (and the loan it becomes, which shares its id)
     /// is denominated in. Absent means the base token.
     LoanAsset(u32),
@@ -595,6 +599,33 @@ pub fn remove_pending_token_addition(env: &Env, token: &Address) {
     env.storage()
         .persistent()
         .remove(&DataKey::PendingTokenAddition(token.clone()));
+}
+
+pub fn next_token_proposal_id(env: &Env) -> u32 {
+    let current: u32 = env
+        .storage()
+        .instance()
+        .get(&DataKey::NextTokenProposalId)
+        .unwrap_or(0);
+    env.storage()
+        .instance()
+        .set(&DataKey::NextTokenProposalId, &current.saturating_add(1));
+    current
+}
+
+pub fn set_token_proposal_id(env: &Env, token: &Address, id: u32) {
+    let key = DataKey::TokenProposalId(token.clone());
+    env.storage().persistent().set(&key, &id);
+    extend_persistent(env, &key);
+}
+
+pub fn get_token_proposal_id(env: &Env, token: &Address) -> Option<u32> {
+    let key = DataKey::TokenProposalId(token.clone());
+    let id = env.storage().persistent().get(&key);
+    if id.is_some() {
+        extend_persistent(env, &key);
+    }
+    id
 }
 
 /// Asset of loan proposal / loan `id`; the base token unless recorded.
