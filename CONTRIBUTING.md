@@ -25,22 +25,48 @@ If you think something should change but there's no issue for it, open one and d
 
 ## Local setup
 
-You need a stable Rust toolchain (1.84 or newer — `soroban-sdk` requires the `wasm32v1-none` target, which older toolchains don't have):
+The commands below assume Ubuntu 22.04 or newer. Install the system tools used by the build and the Rustup installer:
 
 ```bash
-rustup target add wasm32v1-none
-rustup component add rustfmt
+sudo apt-get update
+sudo apt-get install -y build-essential curl git pkg-config libssl-dev
 ```
 
-Then:
+Install stable Rust with the formatting and lint components and the Soroban WASM target. Rust 1.84 is the minimum supported version.
 
 ```bash
-git clone https://github.com/ourdao/ourdao-contracts
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
+rustup toolchain install stable --component rustfmt --component clippy --target wasm32v1-none
+rustup default stable
+```
+
+Install the Stellar CLI and the coverage tool:
+
+```bash
+cargo install --locked stellar-cli
+cargo install --locked cargo-llvm-cov
+```
+
+Clone the repository and run a single named test to check the toolchain:
+
+```bash
+git clone https://github.com/ourdao/ourdao-contracts.git
 cd ourdao-contracts
-cargo test
+cargo test --locked --lib policy_update_cancel_by_admin
 ```
 
-If `cargo test` passes on a clean checkout, you're set up correctly. If it doesn't, that's a bug — please open an issue rather than working around it.
+Run the same format, lint, test, and WASM build checks used by `make ci`:
+
+```bash
+make ci
+```
+
+To run CI's coverage check as well:
+
+```bash
+cargo llvm-cov --locked --all-targets --html --fail-under-lines 95
+```
 
 ## Running the checks CI runs
 
