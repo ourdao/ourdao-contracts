@@ -337,3 +337,47 @@ pub fn assert_prop_cancelled_event(env: &Env, proposal_id: u32) {
     assert_eq!(data[0], ScVal::U32(proposal_id));
     assert_eq!(data[1], ScVal::U64(env.ledger().timestamp()));
 }
+
+
+// Fee-on-transfer mock used to prove repayment accounting checks actual receipt (#283).
+#[soroban_sdk::contracttype]
+#[derive(Clone)]
+pub enum FeeTokenKey {
+    Balance(Address),
+}
+
+#[soroban_sdk::contract]
+pub struct FeeToken;
+
+#[soroban_sdk::contractimpl]
+impl FeeToken {
+    pub fn mint(env: Env, to: Address, amount: i128) {
+        let key = FeeTokenKey::Balance(to);
+        let current: i128 = env.storage().instance().get(&key).unwrap_or(0);
+        env.storage().instance().set(&key, &(current + amount));
+    }
+
+    pub fn balance(env: Env, id: Address) -> i128 {
+        env.storage()
+            .instance()
+            .get(&FeeTokenKey::Balance(id))
+            .unwrap_or(0)
+    }
+
+    pub fn transfer(env: Env, from: Address, to: Address, amount: i128) {
+        if amount < 0 {
+            panic!("negative transfer");
+        }
+        let fee = if amount > 0 { (amount + 99) / 100 } else { 0 };
+        let received = amount - fee;
+        let from_key = FeeTokenKey::Balance(from);
+        let to_key = FeeTokenKey::Balance(to);
+        let from_balance: i128 = env.storage().instance().get(&from_key).unwrap_or(0);
+        if from_balance < amount {
+            panic!("insufficient balance");
+        }
+        let to_balance: i128 = env.storage().instance().get(&to_key).unwrap_or(0);
+        env.storage().instance().set(&from_key, &(from_balance - amount));
+        env.storage().instance().set(&to_key, &(to_balance + received));
+    }
+}

@@ -96,4 +96,7 @@ pub enum Error {
     TooManyOpenProposals = 90,
     /// A borrower cannot vote on their own loan proposal (#327).
     BorrowerCannotVote = 91,
+    /// Code 92 is intentionally reserved for the concurrent whitelist-cap change (#282).
+    /// An inbound token transfer delivered less than the requested amount (#283).
+    TransferAmountMismatch = 93,
 }

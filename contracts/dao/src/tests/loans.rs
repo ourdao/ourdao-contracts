@@ -1311,3 +1311,43 @@ fn overdue_penalty_tested_across_partial_payments() {
     assert_eq!(loan_after_second.amount_repaid, 200);
 }
 }
+
+
+// Issue #283: repayment must not credit more than a fee-on-transfer asset delivered.
+#[test]
+fn fee_on_transfer_repayment_is_rejected_and_rolled_back() {
+    let s = setup(3);
+    let borrower = s.members.get(0).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let v2 = s.members.get(2).unwrap();
+
+    let fee_token_id = s.env.register(FeeToken, ());
+    let fee_token = FeeTokenClient::new(&s.env, &fee_token_id);
+    s.client.propose_token_addition(&s.admin, &fee_token_id);
+    advance(&s.env, TIMELOCK_DURATION);
+    s.client.execute_token_addition(&s.admin, &fee_token_id);
+    fee_token.mint(&s.client.address, &10_000);
+
+    let pid = s
+        .client
+        .request_loan_in_asset(&borrower, &1_000, &fee_token_id, &None);
+    advance(&s.env, EDITING + 1);
+    s.client.vote_on_loan_proposal(&v1, &pid, &true);
+    s.client.vote_on_loan_proposal(&v2, &pid, &true);
+
+    let loan_before = s.client.get_loan(&pid).unwrap();
+    fee_token.mint(&borrower, &loan_before.total_repayment);
+    let dao_before = fee_token.balance(&s.client.address);
+    let borrower_before = fee_token.balance(&borrower);
+
+    assert_eq!(
+        s.client
+            .try_repay_loan_in_asset(&borrower, &pid, &fee_token_id),
+        Err(Ok(Error::TransferAmountMismatch))
+    );
+
+    // Contract error reverts the token transfer and all accounting writes.
+    assert_eq!(fee_token.balance(&s.client.address), dao_before);
+    assert_eq!(fee_token.balance(&borrower), borrower_before);
+    assert_eq!(s.client.get_loan(&pid).unwrap(), loan_before);
+}

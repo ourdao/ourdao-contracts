@@ -608,7 +608,19 @@ fn repay_loan_internal(
         distribute_interest(env, interest_component, &asset);
     }
     // External token interaction last; failed transfers revert all accounting effects.
-    util::token_client_for(env, &asset).transfer(&borrower, util::contract_address(env), &amount);
+    // Measure the actual amount received so fee-on-transfer/non-conforming
+    // assets cannot make accounting claim more repayment than the treasury got.
+    let contract = util::contract_address(env);
+    let tk = util::token_client_for(env, &asset);
+    let balance_before = tk.balance(&contract);
+    tk.transfer(&borrower, &contract, &amount);
+    let balance_after = tk.balance(&contract);
+    let received = balance_after
+        .checked_sub(balance_before)
+        .ok_or(Error::TransferAmountMismatch)?;
+    if received != amount {
+        return Err(Error::TransferAmountMismatch);
+    }
 
     env.events().publish(
         (symbol_short!("loan_rpy"),),
