@@ -335,3 +335,19 @@ fn get_treasury_balance_in_asset_works_for_non_whitelisted_token() {
     let bal = s.client.get_treasury_balance_in_asset(&other_sac.address());
     assert_eq!(bal, 0);
 }
+
+
+// Issue #281: all treasury assets can be fetched in one view.
+#[test]
+fn get_treasury_balances_returns_base_and_whitelisted_assets() {
+    let s = setup(2);
+    let second = whitelist_second_asset(&s, 5_000);
+
+    let balances = s.client.get_treasury_balances();
+    assert_eq!(balances.len(), 2);
+    assert_eq!(
+        balances.get(s.token.address.clone()),
+        Some(s.client.get_treasury_balance())
+    );
+    assert_eq!(balances.get(second.address.clone()), Some(5_000));
+}
