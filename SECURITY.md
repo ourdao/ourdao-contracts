@@ -6,6 +6,12 @@ OurDAO is **testnet-stage only**. There is no mainnet deployment, and the contra
 
 This policy covers `ourdao-contracts`, the Soroban smart contract that is the single source of truth for all OurDAO state.
 
+## Trust assumptions
+
+- **Admin:** At least one admin account is trusted. A compromised admin can add or remove other admins (but cannot remove the last admin), set or revoke the pauser, change the consensus threshold immediately, pause or unpause the DAO, and propose or cancel policy updates. Policy updates and token additions can be executed by an admin only after the 48-hour timelock; policy values are still validated. An admin can also remove a non-base token from the whitelist when the treasury holds no balance of it. These privileges can weaken governance or disrupt operation, but admin entrypoints do not provide arbitrary treasury transfers; loans and withdrawals still follow their proposal and governance flows.
+- **Pauser:** The pauser is an emergency-stop role. A compromised pauser can pause the DAO and disrupt operations, but cannot unpause unless the same account is also an admin. A pauser cannot change admins, thresholds, policy, or the token whitelist and has no direct fund-transfer authority.
+- **Role separation:** Admins control configuration and recovery; the pauser can only initiate a pause. Protect admin credentials accordingly, and do not treat the pauser as a substitute for an admin.
+
 ### In scope, and most valuable
 
 - **Fund-loss paths** — anything that lets treasury or member funds be moved, locked, or miscounted outside the intended rules (loan issuance/repayment, treasury withdrawal, membership exit, yield distribution, default handling).
