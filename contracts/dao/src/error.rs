@@ -104,4 +104,7 @@ pub enum Error {
     /// A returning member still has a loan outstanding or a defaulted loan on
     /// record, so they may not rejoin and reset their standing (#168).
     DefaultedLoanOutstanding = 94,
+    /// `seed_loans` got an `Active` loan whose borrower has not been seeded,
+    /// or was seeded with `has_active_loan == false` (invariant L2, #455).
+    SeedLoanMemberMismatch = 95,
 }

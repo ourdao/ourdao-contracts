@@ -351,6 +351,7 @@ Numeric codes are stable and part of the ABI — new variants get appended rathe
 | 92 | `TokenHasBalance` |
 | 93 | `TokenHasActiveLoans` |
 | 94 | `DefaultedLoanOutstanding` |
+| 95 | `SeedLoanMemberMismatch` |
 
 ## Build & test
 

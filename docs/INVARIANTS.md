@@ -146,8 +146,11 @@ Tracking issue: open as follow-up (#134).
 across all members. The two must stay in sync on every `stake` / `unstake`
 call.
 
-**Tested:** ❌ **Not tested** as a standalone invariant.
-Tracking issue: open as follow-up (#134).
+**Tested:** ✅ `properties::total_staked_equals_sum_of_member_stakes`
+(`contracts/dao/src/tests/properties.rs`) drives random `stake` / `unstake`
+sequences across several members and checks the reconciliation after every
+call (#454). `seed_stakes` is covered separately by the migration-seeding
+coherence work.
 
 ---
 

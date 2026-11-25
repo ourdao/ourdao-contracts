@@ -4,6 +4,11 @@
 //! choice while voting is open, then reveal it later. The tally only runs on
 //! reveal, so no one sees the running result influence how others vote.
 //!
+//! Weight is read live when a vote is revealed, so it must not be raisable
+//! after the reveals start: `staking::stake` refuses while the staker, or the
+//! delegatee it backs, holds an unrevealed commitment (#453), mirroring the
+//! existing `unstake` lock.
+//!
 //! Applies to treasury proposals created with `private = true`.
 
 use soroban_sdk::{xdr::ToXdr, Address, Bytes, BytesN, Env};

@@ -417,3 +417,120 @@ fn public_proposal_still_expires_after_one_voting_period() {
         ProposalStatus::Expired
     );
 }
+
+// ── a revealed vote's weight cannot be raised after commit (#453) ──────────
+
+#[test]
+fn late_stake_before_reveal_is_blocked_and_vote_keeps_commit_time_weight() {
+    let s = setup(4);
+    let proposer = s.members.get(0).unwrap();
+    let late = s.members.get(1).unwrap();
+    let early = s.members.get(2).unwrap();
+    let dest = Address::generate(&s.env);
+    let reason = String::from_str(&s.env, "secret grant");
+    let pid = s
+        .client
+        .propose_treasury_withdrawal(&proposer, &600, &dest, &reason, &true);
+
+    let late_salt = BytesN::from_array(&s.env, &[1u8; 32]);
+    let early_salt = BytesN::from_array(&s.env, &[2u8; 32]);
+    s.client.commit_treasury_vote(
+        &late,
+        &pid,
+        &compute_commitment(&s.env, &late, pid, true, &late_salt),
+    );
+    s.client.commit_treasury_vote(
+        &early,
+        &pid,
+        &compute_commitment(&s.env, &early, pid, false, &early_salt),
+    );
+    let weight_at_commit = s.client.get_voting_weight(&late);
+    assert_eq!(weight_at_commit, 1);
+
+    // Blocked during the commit phase...
+    assert_eq!(
+        s.client.try_stake(&late, &10_000),
+        Err(Ok(Error::HasActiveLoan))
+    );
+
+    // ...and after watching another member's reveal move the public tally.
+    advance(&s.env, VOTING_PERIOD + 1);
+    s.client
+        .reveal_treasury_vote(&early, &pid, &false, &early_salt);
+    assert_eq!(
+        s.client.get_treasury_proposal(&pid).unwrap().against_votes,
+        1
+    );
+    assert_eq!(
+        s.client.try_stake(&late, &10_000),
+        Err(Ok(Error::HasActiveLoan))
+    );
+    assert_eq!(s.client.get_voting_weight(&late), weight_at_commit);
+
+    s.client
+        .reveal_treasury_vote(&late, &pid, &true, &late_salt);
+    assert_eq!(
+        s.client.get_treasury_proposal(&pid).unwrap().for_votes,
+        weight_at_commit
+    );
+
+    // Once revealed the commitment is consumed and staking is open again.
+    s.client.stake(&late, &10_000);
+    assert!(s.client.get_voting_weight(&late) > weight_at_commit);
+}
+
+#[test]
+fn delegator_cannot_stake_up_a_delegatee_with_an_unrevealed_commitment() {
+    let s = setup(3);
+    let proposer = s.members.get(0).unwrap();
+    let voter = s.members.get(1).unwrap();
+    let delegator = s.members.get(2).unwrap();
+    let dest = Address::generate(&s.env);
+    let reason = String::from_str(&s.env, "secret grant");
+    s.client.delegate_vote(&delegator, &voter);
+    let pid = s
+        .client
+        .propose_treasury_withdrawal(&proposer, &600, &dest, &reason, &true);
+
+    let salt = BytesN::from_array(&s.env, &[3u8; 32]);
+    s.client.commit_treasury_vote(
+        &voter,
+        &pid,
+        &compute_commitment(&s.env, &voter, pid, true, &salt),
+    );
+    let weight_at_commit = s.client.get_voting_weight(&voter);
+
+    advance(&s.env, VOTING_PERIOD + 1);
+    assert_eq!(
+        s.client.try_stake(&delegator, &10_000),
+        Err(Ok(Error::HasActiveLoan))
+    );
+    assert_eq!(s.client.get_voting_weight(&voter), weight_at_commit);
+}
+
+#[test]
+fn stake_is_not_blocked_without_an_unrevealed_commitment() {
+    let s = setup(3);
+    let proposer = s.members.get(0).unwrap();
+    let voter = s.members.get(1).unwrap();
+    let bystander = s.members.get(2).unwrap();
+    let dest = Address::generate(&s.env);
+    let reason = String::from_str(&s.env, "secret grant");
+    let pid = s
+        .client
+        .propose_treasury_withdrawal(&proposer, &600, &dest, &reason, &true);
+    let salt = BytesN::from_array(&s.env, &[4u8; 32]);
+    s.client.commit_treasury_vote(
+        &voter,
+        &pid,
+        &compute_commitment(&s.env, &voter, pid, true, &salt),
+    );
+
+    // A member with no commitment (and no committed delegatee) may stake.
+    s.client.stake(&bystander, &10_000);
+
+    // An abandoned commitment stops blocking once the reveal window closes.
+    let (_, reveal_end) = s.client.get_commit_reveal_window(&pid);
+    s.env.ledger().with_mut(|li| li.timestamp = reveal_end + 1);
+    s.client.stake(&voter, &10_000);
+}

@@ -378,3 +378,43 @@ proptest! {
         prop_assert_eq!(active, active_count);
     }
 }
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(32))]
+
+    /// Invariant L4 (#454): `total_staked` always equals the sum of every
+    /// member's stake, across any interleaving of `stake` / `unstake` by
+    /// several members. Calls go through the real entrypoints; `policy()` has
+    /// no cooldown and no proposals are open, so the guards don't interfere.
+    /// Calls that fail (e.g. unstaking more than is staked) must leave both
+    /// sides untouched, so the invariant is checked after every call.
+    #[test]
+    fn total_staked_equals_sum_of_member_stakes(
+        member_count in 2u32..=4,
+        ops in prop::collection::vec(
+            (0usize..4, prop::bool::ANY, 1i128..=MINT / 4),
+            1..=20,
+        ),
+    ) {
+        let s = setup(member_count);
+
+        for (index, is_stake, amount) in ops {
+            let member = s.members.get(index as u32 % member_count).unwrap();
+            if is_stake {
+                let _ = s.client.try_stake(&member, &amount);
+            } else {
+                let _ = s.client.try_unstake(&member, &amount);
+            }
+
+            let (total, sum) = s.env.as_contract(&s.client.address, || {
+                let sum: i128 = s
+                    .members
+                    .iter()
+                    .map(|m| crate::storage::get_stake(&s.env, &m))
+                    .sum();
+                (crate::storage::get_total_staked(&s.env), sum)
+            });
+            prop_assert_eq!(total, sum);
+        }
+    }
+}

@@ -180,6 +180,11 @@ pub struct TreasuryProposal {
     pub destination: Address,
     pub reason: String,
     pub created_at: u64,
+    /// End of the proposer's cancellation window: `created_at` plus the
+    /// `LoanPolicy.editing_period` in force at creation. Fixed then, like
+    /// `LoanProposal.editing_period_end`, so a later policy update cannot
+    /// move an in-flight proposal's deadline (#452).
+    pub editing_period_end: u64,
     pub status: ProposalStatus,
     pub for_votes: i128,
     pub against_votes: i128,

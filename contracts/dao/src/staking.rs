@@ -6,6 +6,7 @@
 use soroban_sdk::{Address, Env};
 
 use crate::error::Error;
+use crate::privacy;
 use crate::storage;
 use crate::types::{ProposalPhase, ProposalStatus};
 use crate::util;
@@ -20,6 +21,9 @@ pub fn stake(env: &Env, member: Address, amount: i128) -> Result<(), Error> {
     util::auth_member(env, &member)?;
     if amount <= 0 {
         return Err(Error::InvalidAmount);
+    }
+    if weight_locked_by_commitment(env, &member) {
+        return Err(Error::HasActiveLoan);
     }
 
     // Commit stake accounting first (CEI); a failed transfer reverts these writes.
@@ -43,6 +47,38 @@ pub fn stake(env: &Env, member: Address, amount: i128) -> Result<(), Error> {
         (member, amount, new_stake, voting_weight),
     );
     Ok(())
+}
+
+/// True while a stake increase by `member` would raise the weight of a
+/// still-unrevealed private vote (#453). `tally` reads voting weight live at
+/// reveal, and reveals land one at a time with the running tally public, so
+/// without this a voter could commit, watch the others reveal, then stake up
+/// before revealing. That covers the member's own commitment and, because a
+/// delegator's stake counts toward its delegatee's weight, a commitment held
+/// by the member's delegatee. The mirror of the `unstake` lock (#330).
+fn weight_locked_by_commitment(env: &Env, member: &Address) -> bool {
+    let delegatee = storage::get_delegation(env, member);
+    let now = env.ledger().timestamp();
+    let treasury_count = storage::get_proposal_count(env, storage::DataKey::NextTreasuryId);
+    for id in 0..treasury_count {
+        if let Some(p) = storage::get_treasury_proposal(env, id) {
+            if !p.private
+                || p.status != ProposalStatus::Pending
+                || now > privacy::commit_reveal_window(&p).1
+            {
+                continue;
+            }
+            if storage::get_commit(env, id, member).is_some() {
+                return true;
+            }
+            if let Some(ref d) = delegatee {
+                if storage::get_commit(env, id, d).is_some() {
+                    return true;
+                }
+            }
+        }
+    }
+    false
 }
 
 #[allow(deprecated)]
