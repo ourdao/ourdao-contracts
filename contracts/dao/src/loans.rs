@@ -149,8 +149,10 @@ pub fn request_loan_in_asset(
 
     let policy = storage::get_policy(env)?;
     let treasury = util::treasury_balance_in_asset(env, &asset);
-    // Same cap the quote reports as `max_loan` (#80).
-    let max_loan = max_loan_for(&policy, treasury);
+    // Same cap the quote reports as `max_loan` (#80), but measured against
+    // the treasury left after approved-but-unpaid loans and withdrawals, so a
+    // new loan can't be sized against funds already spoken for (#451).
+    let max_loan = max_loan_for(&policy, util::available_treasury_in_asset(env, &asset));
     if amount > max_loan {
         return Err(Error::ExceedsTreasuryRatio);
     }

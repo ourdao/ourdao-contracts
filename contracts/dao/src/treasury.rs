@@ -23,8 +23,8 @@ pub fn propose_withdrawal(
 }
 
 /// Proposes paying `amount` of `asset` (which must be whitelisted) out of the
-/// treasury. Funds reserved for approved-but-undisbursed loans in the same
-/// asset are not available (#172).
+/// treasury. Funds reserved for approved-but-undisbursed loans (#172) and
+/// withdrawals (#451) in the same asset are not available.
 #[allow(deprecated)]
 pub fn propose_withdrawal_in_asset(
     env: &Env,
@@ -51,9 +51,7 @@ pub fn propose_withdrawal_in_asset(
     if !storage::is_token_whitelisted(env, &asset) {
         return Err(Error::TokenNotWhitelisted);
     }
-    let available =
-        util::treasury_balance_in_asset(env, &asset) - util::reserved_loan_commitments(env, &asset);
-    if amount > available {
+    if amount > util::available_treasury_in_asset(env, &asset) {
         return Err(Error::InsufficientTreasury);
     }
 

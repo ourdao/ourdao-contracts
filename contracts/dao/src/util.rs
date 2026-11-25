@@ -267,3 +267,36 @@ pub fn reserved_loan_commitments(env: &Env, asset: &Address) -> i128 {
     }
     total
 }
+
+/// Returns the total amount of treasury withdrawals that passed their vote but
+/// could not be paid out yet (status == ApprovedPendingDisbursement, see
+/// `tre_wait`). Like an approved loan, these funds are already spoken for and
+/// must not back a second withdrawal or loan (#451).
+/// Only proposals denominated in `asset` count.
+pub fn reserved_treasury_commitments(env: &Env, asset: &Address) -> i128 {
+    let count = storage::get_proposal_count(env, storage::DataKey::NextTreasuryId);
+    let mut total: i128 = 0;
+    for id in 0..count {
+        if let Some(proposal) = storage::get_treasury_proposal(env, id) {
+            if proposal.status == ProposalStatus::ApprovedPendingDisbursement
+                && storage::get_treasury_asset(env, id).is_ok_and(|a| a == *asset)
+            {
+                total += proposal.amount;
+            }
+        }
+    }
+    total
+}
+
+/// Everything already approved for payout in `asset` but not yet paid:
+/// pending loan disbursements plus pending treasury withdrawals (#172, #451).
+pub fn reserved_commitments(env: &Env, asset: &Address) -> i128 {
+    reserved_loan_commitments(env, asset) + reserved_treasury_commitments(env, asset)
+}
+
+/// Treasury in `asset` that is free to back a new withdrawal or loan: the
+/// spendable balance minus every reserved commitment. May be negative when
+/// the treasury is short of what it already owes.
+pub fn available_treasury_in_asset(env: &Env, asset: &Address) -> i128 {
+    treasury_balance_in_asset(env, asset) - reserved_commitments(env, asset)
+}

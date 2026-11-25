@@ -7,6 +7,10 @@ All notable changes to `ourdao-contracts` are documented here. The format follow
 ### Fixed
 - `register_member` now rejects a returning member who defaulted on a loan (or still has one outstanding) with the new `Error::DefaultedLoanOutstanding` (94), so exiting and rejoining can no longer reset a defaulter's standing (#168).
 - `contracts/dao/src/admin.rs` compiles again: `remove_token` regains its closing brace and token-removal event payload, the token-whitelist events use the shared `events` constants, and the unused, malformed duplicate `try_execute_policy_update` is removed (the public entrypoint is `execute_policy_update`) (#433).
+- `validate_policy` now caps `max_loan_duration` at `admin::MAX_LOAN_DURATION` (365 days), rejecting longer terms with `InvalidLoanPolicy` at `initialize` and on `propose_policy_update`, like the 30-day cap on the other policy durations (#449).
+- `propose_policy_update` accepts `quorum_bps == 0`, the fallback-to-`consensus_threshold` sentinel that `initialize` already accepts; both paths now share `validate_policy` alone (#450).
+- Treasury withdrawals parked in `ApprovedPendingDisbursement` now reserve their amount: `propose_withdrawal_in_asset` and the loan-request treasury-ratio cap subtract them (and approved-but-undisbursed loans) via the new `util::available_treasury_in_asset`, so the same funds can't be committed twice (#451).
+- Decided and documented that `execute_policy_update` is the only way to apply a pending policy update: the removed `try_execute_policy_update` is not coming back (a contract fn by that name would also collide with the SDK-generated `try_` client method). README no longer lists it, and a test pins the `(old_policy, new_policy)` event payload (#447).
 - `expire_treasury_proposal` now waits for a private proposal's full commit + reveal window (`created_at + voting_period * 2`), the same boundary `tally` enforces, so committed votes can no longer be locked out of revealing (#434).
 
 ## [0.2.0] - 2026-11-21
