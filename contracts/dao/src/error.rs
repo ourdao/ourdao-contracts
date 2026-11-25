@@ -47,8 +47,7 @@ pub enum Error {
 
     // ---- staking, registry, and documents ----
     NameTaken = 60,
-    /// Reserved: never returned. No contract code path produces it; kept
-    /// because codes are append-only public ABI (#252).
+    /// `release_name` was called by an owner with no registered name (#458).
     NameNotFound = 61,
     NoStake = 62,
     InsufficientStake = 63,

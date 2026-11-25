@@ -266,6 +266,11 @@ rounding favours the DAO treasury:
 3. Untested invariants (**❌**) are the highest-priority candidates for new property
    tests — they represent the shortest path from "working code" to "a bug nobody
    noticed."
+4. Adding a new proposal-like feature (e.g. ADR-0004 loan extensions)? Follow
+   the extension contract documented on `storage::ProposalKind`
+   (`contracts/dao/src/storage.rs`, #459): either append a variant and update
+   every `match` over it in `docs.rs`, or document the feature as deliberately
+   excluded from document attachment and reject it with `InvalidProposal`.
 
 ---
 

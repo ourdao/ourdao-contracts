@@ -406,6 +406,13 @@ impl OurDao {
         registry::register_name(&env, owner, name)
     }
 
+    /// Releases `owner`'s registered name so they go nameless without
+    /// claiming a replacement or exiting (#458). `owner` must authorize;
+    /// returns `NameNotFound` if they hold no name and emits `name_rel`.
+    pub fn release_name(env: Env, owner: Address) -> Result<(), Error> {
+        registry::release_name(&env, owner)
+    }
+
     /// Resolves a registered name to its owner address. Read-only; returns
     /// `None` when unregistered and `NotInitialized` if the DAO is uninitialized.
     pub fn resolve_name(env: Env, name: String) -> Result<Option<Address>, Error> {

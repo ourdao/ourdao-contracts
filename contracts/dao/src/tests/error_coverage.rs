@@ -462,9 +462,8 @@ fn error_name_taken() {
 #[test]
 fn error_name_not_found() {
     let s = setup(1);
-    let result = s
-        .client
-        .try_resolve_name(&String::from_str(&s.env, "nonexistent"));
+    let member = s.members[0].clone();
+    let result = s.client.try_release_name(&member);
     assert_eq!(result, Err(Ok(Error::NameNotFound)));
 }
 

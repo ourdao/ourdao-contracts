@@ -344,6 +344,10 @@ fn pause_blocks_all_mutating_entrypoints_except_repay() {
             ),
         },
         EntryPoint {
+            name: "release_name",
+            blocked: matches!(s.client.try_release_name(&borrower), Err(Ok(Error::Paused))),
+        },
+        EntryPoint {
             name: "commit_treasury_vote",
             blocked: matches!(
                 s.client.try_commit_treasury_vote(
@@ -592,6 +596,13 @@ fn pause_blocks_all_mutating_entrypoints() {
         res,
         Err(Ok(Error::Paused)),
         "register_name should be pause-gated"
+    );
+
+    let res = s.client.try_release_name(&borrower);
+    assert_eq!(
+        res,
+        Err(Ok(Error::Paused)),
+        "release_name should be pause-gated"
     );
 
     // ==================== Privacy (commit-reveal voting) ====================
@@ -946,6 +957,75 @@ fn get_dao_summary_matches_individual_views() {
 
     s.client.pause(&s.admin);
     assert!(s.client.get_dao_summary().paused);
+}
+
+// #457: after funds move in several assets, every `treasury_balances` entry
+// must still equal `get_treasury_balance_in_asset` for that asset, in
+// whitelist order with the base token first.
+#[test]
+fn get_dao_summary_treasury_balances_match_per_asset_view() {
+    let s = setup(3);
+    let staker = s.members.get(0).unwrap();
+    let borrower = s.members.get(1).unwrap();
+    let voter = s.members.get(2).unwrap();
+    let destination = Address::generate(&s.env);
+
+    // Base: stake, which the per-asset view excludes.
+    s.client.stake(&staker, &500);
+    // Second asset: lend some of it out.
+    let second = whitelist_second_asset(&s, 5_000);
+    let loan_id = s
+        .client
+        .request_loan_in_asset(&borrower, &2_000, &second.address, &None);
+    advance(&s.env, EDITING + 1);
+    // The staker's boosted weight carries the loan, so they vote last.
+    s.client.vote_on_loan_proposal(&voter, &loan_id, &true);
+    s.client.vote_on_loan_proposal(&staker, &loan_id, &true);
+    assert_eq!(second.balance(&borrower), 2_000);
+    // Third asset: pay some of it out through a treasury proposal.
+    let third = whitelist_second_asset(&s, 4_000);
+    let reason = String::from_str(&s.env, "grant");
+    let pid = s.client.propose_withdrawal_in_asset(
+        &staker,
+        &1_500,
+        &third.address,
+        &destination,
+        &reason,
+        &false,
+    );
+    s.client.vote_on_treasury_proposal(&borrower, &pid, &true);
+    s.client.vote_on_treasury_proposal(&voter, &pid, &true);
+    assert_eq!(third.balance(&destination), 1_500);
+
+    let whitelist = s.client.get_whitelisted_tokens();
+    assert_eq!(
+        whitelist,
+        Vec::from_array(
+            &s.env,
+            [
+                s.client.get_token(),
+                second.address.clone(),
+                third.address.clone()
+            ]
+        )
+    );
+
+    let summary = s.client.get_dao_summary();
+    assert_eq!(summary.treasury_balances.len(), whitelist.len());
+    for (i, asset) in whitelist.iter().enumerate() {
+        let entry = summary.treasury_balances.get(i as u32).unwrap();
+        assert_eq!(entry.asset, asset);
+        assert_eq!(
+            entry.balance,
+            s.client.get_treasury_balance_in_asset(&asset)
+        );
+    }
+    assert_eq!(
+        summary.treasury_balances.get(0).unwrap().asset,
+        s.client.get_token()
+    );
+    assert_eq!(summary.treasury_balances.get(1).unwrap().balance, 3_000);
+    assert_eq!(summary.treasury_balances.get(2).unwrap().balance, 2_500);
 }
 
 #[test]

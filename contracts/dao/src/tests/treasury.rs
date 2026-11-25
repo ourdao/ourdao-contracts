@@ -596,7 +596,6 @@ fn treasury_execution_uses_proposal_asset_after_whitelist_removal() {
     assert_eq!(s.token.balance(&dest), base_before);
 }
 
-
 // Issue #281: all treasury assets can be fetched in one view.
 #[test]
 fn get_treasury_balances_returns_base_and_whitelisted_assets() {
@@ -610,4 +609,83 @@ fn get_treasury_balances_returns_base_and_whitelisted_assets() {
         Some(s.client.get_treasury_balance())
     );
     assert_eq!(balances.get(second.address.clone()), Some(5_000));
+}
+
+// ==================== issue #456: expiry deadline regression ====================
+// These pin the deadlines to literal `voting_period` arithmetic rather than
+// `get_commit_reveal_window`, so a refactor of the shared window helper can't
+// move `expire_treasury_proposal`'s deadline without one of them failing.
+
+fn treasury_proposal_created_at(s: &Setup, private: bool) -> (u32, u64) {
+    let proposer = s.members.get(0).unwrap();
+    let destination = Address::generate(&s.env);
+    let reason = String::from_str(&s.env, "deadline");
+    let pid =
+        s.client
+            .propose_treasury_withdrawal(&proposer, &300, &destination, &reason, &private);
+    let created_at = s.client.get_treasury_proposal(&pid).unwrap().created_at;
+    (pid, created_at)
+}
+
+fn set_time(s: &Setup, timestamp: u64) {
+    use soroban_sdk::testutils::Ledger as _;
+    s.env.ledger().with_mut(|li| li.timestamp = timestamp);
+}
+
+#[test]
+fn private_treasury_proposal_not_expirable_between_one_and_two_voting_periods() {
+    let s = setup(3);
+    let (pid, created_at) = treasury_proposal_created_at(&s, true);
+
+    // Every instant in (voting_period, 2 * voting_period] is still the reveal
+    // window: expiry must be refused and the proposal left Pending.
+    for at in [
+        created_at + VOTING_PERIOD + 1,
+        created_at + VOTING_PERIOD + VOTING_PERIOD / 2,
+        created_at + VOTING_PERIOD * 2,
+    ] {
+        set_time(&s, at);
+        assert_eq!(
+            s.client.try_expire_treasury_proposal(&pid),
+            Err(Ok(Error::NotInVotingPhase)),
+        );
+        assert_eq!(
+            s.client.get_treasury_proposal(&pid).unwrap().status,
+            ProposalStatus::Pending
+        );
+    }
+}
+
+#[test]
+fn private_treasury_proposal_expires_after_two_voting_periods() {
+    let s = setup(3);
+    let (pid, created_at) = treasury_proposal_created_at(&s, true);
+
+    set_time(&s, created_at + VOTING_PERIOD * 2 + 1);
+    s.client.expire_treasury_proposal(&pid);
+    assert_eq!(
+        s.client.get_treasury_proposal(&pid).unwrap().status,
+        ProposalStatus::Expired
+    );
+}
+
+#[test]
+fn public_treasury_proposal_still_expires_after_one_voting_period() {
+    let s = setup(3);
+    let (pid, created_at) = treasury_proposal_created_at(&s, false);
+
+    set_time(&s, created_at + VOTING_PERIOD);
+    assert_eq!(
+        s.client.try_expire_treasury_proposal(&pid),
+        Err(Ok(Error::NotInVotingPhase)),
+    );
+
+    // One second past a single voting_period is enough: the private-proposal
+    // fix must not stretch the public deadline to 2 * voting_period.
+    set_time(&s, created_at + VOTING_PERIOD + 1);
+    s.client.expire_treasury_proposal(&pid);
+    assert_eq!(
+        s.client.get_treasury_proposal(&pid).unwrap().status,
+        ProposalStatus::Expired
+    );
 }

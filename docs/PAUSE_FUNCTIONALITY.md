@@ -12,7 +12,7 @@ The original pause implementation only blocked 8 state-changing operations while
 4. `unstake` - prevents stake withdrawals
 5. `edit_loan_proposal` - prevents modification of loan proposals
 6. `mark_loan_defaulted` - prevents slashing member contributions
-7. `register_name` - prevents name registry changes
+7. `register_name` / `release_name` - prevents name registry changes
 8. `attach_document` - prevents proposal document changes
 9. `disburse_approved_loan` - prevents loan disbursements
 10. `execute_approved` (treasury) - prevents treasury withdrawals

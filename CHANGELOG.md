@@ -4,6 +4,12 @@ All notable changes to `ourdao-contracts` are documented here. The format follow
 
 ## [Unreleased]
 
+### Added
+- Documented the `ProposalKind` extension contract: a new proposal-like feature either appends a variant and gives it a real arm in every `docs.rs` match, or is documented as excluded from document attachment and rejected with `InvalidProposal`. The note lives on `ProposalKind`, and `docs.rs` and `INVARIANTS.md` point to it. A test with an exhaustive match stops compiling when a variant is added (#459).
+- A test proving every `get_dao_summary().treasury_balances` entry matches `get_treasury_balance_in_asset` after funds move in three assets (stake in the base token, a loan in a second asset, a treasury withdrawal in a third), with the base token first in both the whitelist and the summary (#457).
+- `release_name(owner)` lets a member give up their registered name without claiming a replacement or exiting the DAO. It requires `owner` auth, is pause-gated, emits the existing `name_rel` event, and returns `NameNotFound` (61, previously reserved and never returned) when `owner` holds no name (#458).
+- Regression tests pinning `expire_treasury_proposal` to literal deadlines: a private proposal is not expirable anywhere in `(voting_period, voting_period * 2]` and expires after `voting_period * 2`, while a public proposal still expires after one `voting_period` (#456).
+
 ### Fixed
 - `register_member` now rejects a returning member who defaulted on a loan (or still has one outstanding) with the new `Error::DefaultedLoanOutstanding` (94), so exiting and rejoining can no longer reset a defaulter's standing (#168).
 - `contracts/dao/src/admin.rs` compiles again: `remove_token` regains its closing brace and token-removal event payload, the token-whitelist events use the shared `events` constants, and the unused, malformed duplicate `try_execute_policy_update` is removed (the public entrypoint is `execute_policy_update`) (#433).

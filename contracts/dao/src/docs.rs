@@ -10,6 +10,10 @@ use crate::storage::{self, ProposalKind};
 use crate::types::ProposalPhase;
 use crate::util;
 
+/// Whether proposal `id` of `kind` exists.
+///
+/// Adding a `ProposalKind` variant? Read the extension contract on
+/// `storage::ProposalKind` (#459) before adding an arm here.
 fn proposal_exists(env: &Env, kind: &ProposalKind, id: u32) -> bool {
     match kind {
         ProposalKind::Loan => storage::get_loan_proposal(env, id).is_some(),
@@ -21,6 +25,9 @@ fn proposal_exists(env: &Env, kind: &ProposalKind, id: u32) -> bool {
 /// document — the borrower for loan proposals, the proposer for treasury
 /// proposals. `None` if the proposal doesn't exist (caller should already
 /// have checked `proposal_exists`).
+///
+/// Adding a `ProposalKind` variant? Read the extension contract on
+/// `storage::ProposalKind` (#459) before adding an arm here.
 fn proposal_owner(env: &Env, kind: &ProposalKind, id: u32) -> Option<Address> {
     match kind {
         ProposalKind::Loan => storage::get_loan_proposal(env, id).map(|p| p.borrower),
@@ -54,6 +61,8 @@ pub fn attach_document(
         return Err(Error::NotProposalOwner);
     }
     // #59 — Do not allow silent swaps of the document once voting is open.
+    // A new `ProposalKind` variant needs an arm here too; see the extension
+    // contract on `storage::ProposalKind` (#459).
     match kind {
         ProposalKind::Loan => {
             if let Some(p) = storage::get_loan_proposal(env, proposal_id) {

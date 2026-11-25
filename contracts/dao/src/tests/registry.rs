@@ -1,3 +1,5 @@
+extern crate std;
+
 use soroban_sdk::testutils::Address as _;
 use soroban_sdk::{Address, String};
 
@@ -248,4 +250,75 @@ fn initialized_views_still_return_none_for_missing_records() {
     assert!(s.client.is_initialized());
     assert_eq!(s.client.resolve_name(&name), None);
     assert_eq!(s.client.name_of(&Address::generate(&s.env)), None);
+}
+
+// ==================== issue #458: explicit release_name ====================
+
+#[test]
+fn release_name_frees_the_name_for_another_member() {
+    use soroban_sdk::testutils::Events as _;
+
+    let s = setup(2);
+    let owner = s.members.get(0).unwrap();
+    let other = s.members.get(1).unwrap();
+    let name = String::from_str(&s.env, "alice_dao");
+    s.client.register_name(&owner, &name);
+
+    s.client.release_name(&owner);
+    // Only `name_rel` is emitted; the owner stays an active, nameless member.
+    assert_eq!(s.env.events().all().events().len(), 1);
+    assert!(emitted(&s.env, "name_rel"));
+    assert_eq!(s.client.resolve_name(&name), None);
+    assert_eq!(s.client.name_of(&owner), None);
+    assert!(s.client.is_member(&owner));
+
+    // The freed name is immediately claimable by a different member.
+    s.client.register_name(&other, &name);
+    assert_eq!(s.client.resolve_name(&name), Some(other.clone()));
+    assert_eq!(s.client.name_of(&other), Some(name));
+}
+
+#[test]
+fn release_name_without_a_name_is_rejected() {
+    let s = setup(1);
+    let owner = s.members.get(0).unwrap();
+    assert_eq!(
+        s.client.try_release_name(&owner),
+        Err(Ok(Error::NameNotFound))
+    );
+
+    // Releasing twice fails the second time.
+    s.client
+        .register_name(&owner, &String::from_str(&s.env, "alice_dao"));
+    s.client.release_name(&owner);
+    assert_eq!(
+        s.client.try_release_name(&owner),
+        Err(Ok(Error::NameNotFound))
+    );
+}
+
+#[test]
+fn release_name_requires_owner_auth() {
+    use soroban_sdk::testutils::{AuthorizedFunction, AuthorizedInvocation};
+    use soroban_sdk::{IntoVal, Symbol};
+
+    let s = setup(1);
+    let owner = s.members.get(0).unwrap();
+    s.client
+        .register_name(&owner, &String::from_str(&s.env, "alice_dao"));
+    s.client.release_name(&owner);
+    assert_eq!(
+        s.env.auths(),
+        std::vec![(
+            owner.clone(),
+            AuthorizedInvocation {
+                function: AuthorizedFunction::Contract((
+                    s.client.address.clone(),
+                    Symbol::new(&s.env, "release_name"),
+                    (owner.clone(),).into_val(&s.env),
+                )),
+                sub_invocations: std::vec![],
+            }
+        )]
+    );
 }

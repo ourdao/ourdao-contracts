@@ -1,5 +1,5 @@
 use soroban_sdk::testutils::Address as _;
-use soroban_sdk::Bytes;
+use soroban_sdk::{Address, Bytes, String};
 
 use super::common::*;
 use crate::storage::ProposalKind;
@@ -124,4 +124,46 @@ fn attach_document_treasury_proposal_proposer_and_non_proposer() {
         s.client.get_document(&ProposalKind::Treasury, &pid),
         Some(cid2)
     );
+}
+
+// ==================== issue #459: ProposalKind extension contract ====================
+
+/// Whether `kind` accepts documents. Deliberately an exhaustive `match`: a new
+/// `ProposalKind` variant stops this compiling until its author decides
+/// between the two options in the extension contract on
+/// `storage::ProposalKind` and records the choice here.
+fn accepts_documents(kind: ProposalKind) -> bool {
+    match kind {
+        ProposalKind::Loan | ProposalKind::Treasury => true,
+    }
+}
+
+#[test]
+fn every_proposal_kind_follows_the_document_extension_contract() {
+    let s = setup(1);
+    let member = s.members.get(0).unwrap();
+    let loan_id = s.client.request_loan(&member, &500, &None);
+    let treasury_id = s.client.propose_treasury_withdrawal(
+        &member,
+        &100,
+        &Address::generate(&s.env),
+        &String::from_str(&s.env, "grant"),
+        &false,
+    );
+    let cid = Bytes::from_array(&s.env, b"QmExampleCid1234567890");
+
+    for (kind, id) in [
+        (ProposalKind::Loan, loan_id),
+        (ProposalKind::Treasury, treasury_id),
+    ] {
+        let res = s.client.try_attach_document(&member, &kind, &id, &cid);
+        if accepts_documents(kind) {
+            // Both `proposal_exists` and `proposal_owner` must have an arm
+            // for the kind, or the attach would fail here.
+            assert_eq!(res, Ok(Ok(())));
+            assert_eq!(s.client.get_document(&kind, &id), Some(cid.clone()));
+        } else {
+            assert_eq!(res, Err(Ok(Error::InvalidProposal)));
+        }
+    }
 }

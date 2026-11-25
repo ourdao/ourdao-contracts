@@ -165,6 +165,7 @@ All public entrypoints and views on `OurDao` are listed below in source order, g
 | `stake` |
 | `unstake` |
 | `register_name` |
+| `release_name` |
 | `resolve_name` |
 | `name_of` |
 | `commit_treasury_vote` |
@@ -249,7 +250,7 @@ Each published topic and its event payload are listed below. `ourdao-backend` in
 | `tok_add` | `(caller, token)` | `execute_token_addition` |
 | `tok_rem` | `(caller, token)` | `remove_token` |
 | `joined` | `(member, fee)` | `register_member` |
-| `name_rel` | `(old_name, owner)` | `register_name` when replacing a name; `exit_dao` |
+| `name_rel` | `(old_name, owner)` | `register_name` when replacing a name; `release_name`; `exit_dao` |
 | `exited` | `(member, share, pending_base_yield)` | `exit_dao` |
 | `exit_a` | `(member, asset, amount)` | `exit_dao` when paying non-base yield |
 | `claimed` | `StakingRewardClaimed { member, amount, timestamp }` (the topics also include `member` and `pending`) | `claim_rewards` for the base token |

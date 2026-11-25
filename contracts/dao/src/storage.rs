@@ -11,6 +11,16 @@ const PERSISTENT_BUMP: u32 = 90 * DAY_IN_LEDGERS;
 const PERSISTENT_THRESHOLD: u32 = PERSISTENT_BUMP - DAY_IN_LEDGERS;
 
 /// Distinguishes which proposal family a shared reference (docs, commits) targets.
+///
+/// Extension contract (#459): every new proposal-like feature must either
+/// (a) append a variant here and give it a real arm in each `match` in
+/// `docs.rs` (`proposal_exists`, `proposal_owner`, and the editing-phase check
+/// in `attach_document`), or (b) be documented on its variant or in its ADR as
+/// deliberately excluded from document attachment, with `attach_document`
+/// rejecting that kind with `InvalidProposal` (as ADR-0004 plans for
+/// `LoanExtension`). The compiler also flags the matches in `has_voted` and
+/// `migration::seed_docs`. Never rename or remove a variant: they encode by
+/// name in stored keys and events.
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ProposalKind {
