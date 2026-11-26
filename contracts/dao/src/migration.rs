@@ -16,7 +16,8 @@ use soroban_sdk::{Env, Vec};
 use crate::error::Error;
 use crate::storage::{self};
 use crate::types::{
-    Loan, Member, MemberStatus, SeedDocEntry, SeedNameEntry, SeedStakeEntry, SeedYieldEntry,
+    Loan, LoanStatus, Member, MemberStatus, SeedDocEntry, SeedNameEntry, SeedStakeEntry,
+    SeedYieldEntry,
 };
 use crate::util;
 
@@ -123,12 +124,23 @@ pub fn seed_pending_yield(
 
 /// Seeds loan records. Advances `NextProposalId` past every seeded loan id so
 /// fresh proposals never collide with seeded ones.
+///
+/// Every `Active` loan's borrower must already be seeded (via `seed_members`)
+/// with `has_active_loan == true`; otherwise the whole batch is rejected with
+/// `SeedLoanMemberMismatch` so invariant L2 can't be broken from the first
+/// block (#455). Seed members before loans.
 pub fn seed_loans(env: &Env, caller: soroban_sdk::Address, loans: Vec<Loan>) -> Result<(), Error> {
     util::auth_admin(env, &caller)?;
     require_seeding_open(env)?;
     storage::extend_instance(env);
 
     for loan in loans.iter() {
+        if loan.status == LoanStatus::Active {
+            match storage::get_member(env, &loan.borrower) {
+                Some(m) if m.has_active_loan => {}
+                _ => return Err(Error::SeedLoanMemberMismatch),
+            }
+        }
         // Keep the per-asset outstanding principal (#288) in step. Re-seeding
         // an id replaces what it contributed before rather than adding to it.
         let before = storage::get_loan(env, loan.id)

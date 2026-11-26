@@ -1,6 +1,6 @@
 extern crate std;
 
-use soroban_sdk::testutils::{Address as _, Events as _};
+use soroban_sdk::testutils::{Address as _, Events as _, Ledger as _};
 use soroban_sdk::xdr::{ContractEventBody, ScVal};
 use soroban_sdk::{Address, Env, String, Vec};
 
@@ -625,6 +625,12 @@ fn seeded_loans_count_towards_outstanding_principal() {
         default_grace_period: 0,
         default_penalty_bps: 0,
     };
+    // An Active loan's borrower must be seeded with the flag set first (#455).
+    let mut record = s.client.get_member(&borrower).unwrap();
+    record.has_active_loan = true;
+    record.active_loans = 1;
+    s.client
+        .seed_members(&s.admin, &Vec::from_array(&s.env, [record]));
     let mut batch = Vec::new(&s.env);
     batch.push_back(active.clone());
     s.client.seed_loans(&s.admin, &batch);
@@ -700,6 +706,61 @@ fn get_treasury_balances_returns_base_and_whitelisted_assets() {
     assert_eq!(balances.get(second.address.clone()), Some(5_000));
 }
 
+// ==================== issue #452: snapshotted editing window ====================
+
+/// Applies `editing_period` through the real policy timelock.
+fn update_editing_period(s: &Setup, editing_period: u64) {
+    let mut p = policy();
+    p.editing_period = editing_period;
+    p.quorum_bps = 5_000; // propose_policy_update rejects a zero quorum
+    s.client.propose_policy_update(&s.admin, &p);
+    advance(&s.env, crate::admin::TIMELOCK_DURATION);
+    s.client.execute_policy_update(&s.admin);
+    assert_eq!(s.client.get_loan_policy().editing_period, editing_period);
+}
+
+#[test]
+fn treasury_proposal_snapshots_editing_period_end_at_creation() {
+    let s = setup(1);
+    let proposer = s.members.get(0).unwrap();
+    let dest = Address::generate(&s.env);
+    let reason = String::from_str(&s.env, "grant");
+    let created = s.env.ledger().timestamp();
+
+    let pid = s
+        .client
+        .propose_treasury_withdrawal(&proposer, &600, &dest, &reason, &false);
+    let prop = s.client.get_treasury_proposal(&pid).unwrap();
+    assert_eq!(prop.editing_period_end, created + EDITING);
+
+    update_editing_period(&s, 60);
+    assert_eq!(
+        s.client
+            .get_treasury_proposal(&pid)
+            .unwrap()
+            .editing_period_end,
+        created + EDITING
+    );
+}
+
+#[test]
+fn shortening_editing_period_does_not_close_in_flight_cancellation_window() {
+    let s = setup(1);
+    let proposer = s.members.get(0).unwrap();
+    let dest = Address::generate(&s.env);
+    let reason = String::from_str(&s.env, "grant");
+
+    let pid = s
+        .client
+        .propose_treasury_withdrawal(&proposer, &600, &dest, &reason, &false);
+    // The timelock (48h) runs past the new 1h window but is still inside the
+    // 72h one the proposal was created under.
+    update_editing_period(&s, 60 * 60);
+
+    s.client.cancel_treasury_proposal(&proposer, &pid);
+    assert_eq!(
+        s.client.get_treasury_proposal(&pid).unwrap().status,
+        ProposalStatus::Cancelled
 // ==================== issue #456: expiry deadline regression ====================
 // These pin the deadlines to literal `voting_period` arithmetic rather than
 // `get_commit_reveal_window`, so a refactor of the shared window helper can't
@@ -759,6 +820,25 @@ fn private_treasury_proposal_expires_after_two_voting_periods() {
 }
 
 #[test]
+fn lengthening_editing_period_does_not_extend_in_flight_cancellation_window() {
+    let s = setup(1);
+    let proposer = s.members.get(0).unwrap();
+    let dest = Address::generate(&s.env);
+    let reason = String::from_str(&s.env, "grant");
+
+    let pid = s
+        .client
+        .propose_treasury_withdrawal(&proposer, &600, &dest, &reason, &false);
+    update_editing_period(&s, 10 * EDITING);
+
+    // One second past the original window: closed, despite the new policy.
+    let created = s.client.get_treasury_proposal(&pid).unwrap().created_at;
+    s.env
+        .ledger()
+        .with_mut(|li| li.timestamp = created + EDITING + 1);
+    assert_eq!(
+        s.client.try_cancel_treasury_proposal(&proposer, &pid),
+        Err(Ok(Error::NotInEditingPhase))
 fn public_treasury_proposal_still_expires_after_one_voting_period() {
     let s = setup(3);
     let (pid, created_at) = treasury_proposal_created_at(&s, false);

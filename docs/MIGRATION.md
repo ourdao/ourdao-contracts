@@ -77,7 +77,7 @@ This matters specifically for step 3 above: if the migration is triggered by a b
 
 Not implemented here — this is a specification for a follow-up issue, on the **new** contract only (the old, already-deployed contract's ABI cannot change).
 
-**Shape.** Chunked rather than a single call: a live DAO's member/loan/proposal counts can exceed what fits in one transaction's resource limits, so seeding needs to be splittable across multiple calls without any ordering requirement between chunks (each entry keyed by its own address/id, so a partial batch is safe to retry or reorder):
+**Shape.** Chunked rather than a single call: a live DAO's member/loan/proposal counts can exceed what fits in one transaction's resource limits, so seeding needs to be splittable across multiple calls. Chunks of the same kind have no ordering requirement between them (each entry keyed by its own address/id, so a partial batch is safe to retry or reorder); the one cross-kind ordering rule is that a loan's borrower is seeded before the loan (see **Member/loan consistency** below):
 
 ```
 fn seed_members(env: Env, caller: Address, members: Vec<Member>) -> Result<(), Error>
@@ -90,6 +90,11 @@ fn lock_seeding(env: Env, caller: Address) -> Result<(), Error>
 ```
 
 **Pending yield seeding, specifically.** The pull-based accumulator (`YieldAccumulator(asset)` + per-member/per-asset `MemberYieldSnapshot(member, asset)`, see `loans::distribute_interest`) makes "set this member's pending yield to X" not a direct field write. For legacy base-token yield, leave the base-token accumulator at its natural starting value (0), and set the member's base-token snapshot to `-X`. The base-token pending-yield view computes `(accumulator - snapshot).max(0)`, so `(0 - (-X)).max(0) == X`. `SeedYieldEntry` currently represents base-token yield; there is no historical non-base yield to migrate because the prior implementation did not accrue non-base interest.
+
+**Member/loan consistency (#455).** Invariant L2 in [`INVARIANTS.md`](INVARIANTS.md) ties a member's `has_active_loan` flag to their `Active` loan record, and the two come from different seed calls. `seed_loans` enforces the loan side on-chain: every `Active` loan in a batch must have a borrower already seeded with `has_active_loan == true`, or the whole batch is rejected with `SeedLoanMemberMismatch` (95) and nothing is written. So:
+
+- Seed every borrower with `seed_members` **before** seeding their loans.
+- The reverse direction is not checked on-chain: a member seeded with `has_active_loan == true` but no matching `Active` loan, a member with two `Active` loans, or a member re-seeded with the flag cleared *after* their loan was seeded is accepted. Check these off-chain as part of procedure step 8, before `lock_seeding`.
 
 **Authorization model.** Admin-only (`auth_admin`, same as every other privileged entrypoint), and one-shot in aggregate: every seed function checks a `MigrationSeedingLocked` instance-storage flag and rejects if set, and `lock_seeding` is the only way to set that flag — irreversibly, no `unlock`. Call `lock_seeding` only once independent verification (procedure step 8) is done. Before that lock, seeding is idempotent per key (re-seeding the same address/id overwrites, so a bad chunk can be corrected by re-sending it) but is otherwise unrestricted — this is exactly the trust-concentration point the next section is about.
 

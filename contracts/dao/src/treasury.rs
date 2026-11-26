@@ -57,13 +57,15 @@ pub fn propose_withdrawal_in_asset(
 
     let id = storage::next_id(env, storage::DataKey::NextTreasuryId);
     let policy = storage::get_policy(env)?;
+    let now = env.ledger().timestamp();
     let proposal = TreasuryProposal {
         id,
         proposer,
         amount,
         destination: destination.clone(),
         reason,
-        created_at: env.ledger().timestamp(),
+        created_at: now,
+        editing_period_end: now + policy.editing_period,
         status: ProposalStatus::Pending,
         for_votes: 0,
         against_votes: 0,
@@ -267,10 +269,9 @@ pub fn cancel_treasury_proposal(
         return Err(Error::NotInVotingPhase);
     }
     let now = env.ledger().timestamp();
-    // Treasury proposals don't carry an explicit editing window; treat the
-    // editing period as the policy's editing_period from creation.
-    let policy = storage::get_policy(env)?;
-    if now > proposal.created_at + policy.editing_period {
+    // The window was fixed at creation; the live policy is deliberately not
+    // read here, so a policy update cannot shift it (#452).
+    if now > proposal.editing_period_end {
         return Err(Error::NotInEditingPhase);
     }
 

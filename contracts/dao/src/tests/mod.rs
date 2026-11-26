@@ -9,6 +9,7 @@ mod issue311_budget;
 mod issue313_thresholds;
 mod loans;
 mod membership;
+mod migration;
 mod privacy;
 mod properties;
 mod registry;

@@ -6,6 +6,18 @@ This file records **what has changed**. For **what is deployed** (tagged release
 
 ## [Unreleased]
 
+### Changed
+- **Storage layout:** `TreasuryProposal` gains an `editing_period_end` field (#452). Records written before this change do not decode under the new type. This is accepted rather than handled with a fallback: the contract is immutable with no in-place upgrade path (see `docs/MIGRATION.md`), and treasury proposals are not carried over by migration seeding, so no deployment running this code can hold a record without the field. Off-chain decoders of `get_treasury_proposal` must add the field.
+
+### Added
+- `Error::SeedLoanMemberMismatch` (95), returned by `seed_loans` (#455).
+- Property test `total_staked_equals_sum_of_member_stakes` covering invariant L4 across random multi-member `stake` / `unstake` sequences; `docs/INVARIANTS.md` L4 is now ✅ (#454).
+
+### Fixed
+- `cancel_treasury_proposal` checks the cancellation window snapshotted at creation (`editing_period_end`) instead of reading `editing_period` from the live policy, so a policy update can no longer shorten or lengthen an in-flight treasury proposal's window (#452).
+- `stake` now rejects (`HasActiveLoan`, as `unstake` does for its vote lock) while the staker, or the delegatee it backs, holds an unrevealed commitment on a pending private treasury proposal. Weight is read live at reveal, so a voter could previously commit, watch other reveals move the public tally, then stake up before revealing (#453).
+- `seed_loans` rejects the whole batch with `SeedLoanMemberMismatch` when an `Active` loan's borrower has not been seeded or was seeded with `has_active_loan == false`, so invariant L2 can no longer be broken by out-of-sync migration batches; `docs/MIGRATION.md` documents the members-before-loans ordering and the reverse-direction checks that remain off-chain (#455).
+- `tests/migration.rs` is now registered in `tests/mod.rs` and runs.
 ### Added
 - Documented the `ProposalKind` extension contract: a new proposal-like feature either appends a variant and gives it a real arm in every `docs.rs` match, or is documented as excluded from document attachment and rejected with `InvalidProposal`. The note lives on `ProposalKind`, and `docs.rs` and `INVARIANTS.md` point to it. A test with an exhaustive match stops compiling when a variant is added (#459).
 - A test proving every `get_dao_summary().treasury_balances` entry matches `get_treasury_balance_in_asset` after funds move in three assets (stake in the base token, a loan in a second asset, a treasury withdrawal in a third), with the base token first in both the whitelist and the summary (#457).

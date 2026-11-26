@@ -1,7 +1,11 @@
-use soroban_sdk::Vec;
+use soroban_sdk::testutils::Address as _;
+use soroban_sdk::{Address, Env, Vec};
 
-use super::common::setup;
-use crate::types::{Loan, Member, SeedDocEntry, SeedNameEntry, SeedStakeEntry, SeedYieldEntry};
+use super::common::*;
+use crate::types::{
+    Loan, LoanStatus, Member, MemberStatus, SeedDocEntry, SeedNameEntry, SeedStakeEntry,
+    SeedYieldEntry,
+};
 use crate::{storage::ProposalKind, Error};
 
 #[test]
@@ -74,4 +78,132 @@ fn seed_entrypoints_check_admin_before_seeding_lock() {
     // Keep ProposalKind referenced here to make it easy to add a populated
     // docs case to this test later.
     let _ = ProposalKind::Loan;
+}
+
+// ── seed_loans cross-checks the borrower's has_active_loan flag (#455) ─────
+
+fn seeded_member(env: &Env, address: &Address, has_active_loan: bool) -> Member {
+    Member {
+        address: address.clone(),
+        status: MemberStatus::ActiveMember,
+        join_time: env.ledger().timestamp(),
+        contribution: FEE,
+        share_balance: FEE,
+        has_active_loan,
+        last_loan_time: 0,
+        total_loans: has_active_loan as u32,
+        repaid_loans: 0,
+        active_loans: has_active_loan as u32,
+    }
+}
+
+fn seeded_loan(env: &Env, id: u32, borrower: &Address, status: LoanStatus) -> Loan {
+    let now = env.ledger().timestamp();
+    Loan {
+        id,
+        borrower: borrower.clone(),
+        principal: 1_000,
+        interest_rate: 500,
+        total_repayment: 1_050,
+        start_time: now,
+        due_time: now + LOAN_DURATION,
+        status,
+        amount_repaid: 0,
+        default_grace_period: 0,
+        default_penalty_bps: 0,
+    }
+}
+
+#[test]
+fn seed_loans_rejects_active_loan_for_member_without_flag() {
+    let s = setup(0);
+    let borrower = Address::generate(&s.env);
+    s.client.seed_members(
+        &s.admin,
+        &Vec::from_array(&s.env, [seeded_member(&s.env, &borrower, false)]),
+    );
+
+    let batch = Vec::from_array(
+        &s.env,
+        [seeded_loan(&s.env, 3, &borrower, LoanStatus::Active)],
+    );
+    assert_eq!(
+        s.client.try_seed_loans(&s.admin, &batch),
+        Err(Ok(Error::SeedLoanMemberMismatch))
+    );
+    // Caught before lock_seeding: nothing was persisted.
+    assert_eq!(s.client.get_loan(&3), None);
+}
+
+#[test]
+fn seed_loans_rejects_active_loan_seeded_before_its_member() {
+    let s = setup(0);
+    let borrower = Address::generate(&s.env);
+    let batch = Vec::from_array(
+        &s.env,
+        [seeded_loan(&s.env, 3, &borrower, LoanStatus::Active)],
+    );
+    assert_eq!(
+        s.client.try_seed_loans(&s.admin, &batch),
+        Err(Ok(Error::SeedLoanMemberMismatch))
+    );
+
+    // Seeding the member first makes the same batch acceptable.
+    s.client.seed_members(
+        &s.admin,
+        &Vec::from_array(&s.env, [seeded_member(&s.env, &borrower, true)]),
+    );
+    s.client.seed_loans(&s.admin, &batch);
+    assert_eq!(s.client.get_loan(&3).unwrap().status, LoanStatus::Active);
+}
+
+#[test]
+fn seed_loans_rejects_whole_batch_on_one_mismatch() {
+    let s = setup(0);
+    let good = Address::generate(&s.env);
+    let bad = Address::generate(&s.env);
+    s.client.seed_members(
+        &s.admin,
+        &Vec::from_array(
+            &s.env,
+            [
+                seeded_member(&s.env, &good, true),
+                seeded_member(&s.env, &bad, false),
+            ],
+        ),
+    );
+    let batch = Vec::from_array(
+        &s.env,
+        [
+            seeded_loan(&s.env, 1, &good, LoanStatus::Active),
+            seeded_loan(&s.env, 2, &bad, LoanStatus::Active),
+        ],
+    );
+    assert_eq!(
+        s.client.try_seed_loans(&s.admin, &batch),
+        Err(Ok(Error::SeedLoanMemberMismatch))
+    );
+    assert_eq!(s.client.get_loan(&1), None);
+}
+
+#[test]
+fn seed_loans_accepts_closed_loans_without_flag() {
+    let s = setup(0);
+    let borrower = Address::generate(&s.env);
+    s.client.seed_members(
+        &s.admin,
+        &Vec::from_array(&s.env, [seeded_member(&s.env, &borrower, false)]),
+    );
+    let mut repaid = seeded_loan(&s.env, 4, &borrower, LoanStatus::Repaid);
+    repaid.amount_repaid = repaid.total_repayment;
+    let batch = Vec::from_array(
+        &s.env,
+        [
+            repaid,
+            seeded_loan(&s.env, 5, &borrower, LoanStatus::Defaulted),
+        ],
+    );
+    s.client.seed_loans(&s.admin, &batch);
+    s.client.lock_seeding(&s.admin);
+    assert_eq!(s.client.get_loan(&4).unwrap().status, LoanStatus::Repaid);
 }
