@@ -134,6 +134,8 @@ fn attach_document_treasury_proposal_proposer_and_non_proposer() {
 fn accepts_documents(kind: ProposalKind) -> bool {
     match kind {
         ProposalKind::Loan | ProposalKind::Treasury => true,
+        // ADR-0004: extension requests are explained through the loan's own document.
+        ProposalKind::LoanExtension => false,
     }
 }
 
@@ -154,6 +156,7 @@ fn every_proposal_kind_follows_the_document_extension_contract() {
     for (kind, id) in [
         (ProposalKind::Loan, loan_id),
         (ProposalKind::Treasury, treasury_id),
+        (ProposalKind::LoanExtension, loan_id),
     ] {
         let res = s.client.try_attach_document(&member, &kind, &id, &cid);
         if accepts_documents(kind) {

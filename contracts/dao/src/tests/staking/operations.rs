@@ -154,16 +154,6 @@ fn claim_rewards_emits_staking_reward_claimed_event_and_updates_snapshot() {
 // Issue #182: quadratic (square-root) staking boost
 // ===========================================================================
 
-/// Records `stake` for `who` and reads back the voting weight the contract
-/// would give them, bypassing the transfer so arbitrarily large stakes can be
-/// exercised without minting the matching tokens.
-fn weight_with_stake(env: &Env, contract: &Address, who: &Address, stake: i128) -> i128 {
-    env.as_contract(contract, || {
-        crate::storage::set_stake(env, who, stake);
-        voting_weight(env, who)
-    })
-}
-
 #[test]
 fn unstake_rejected_while_proposal_in_voting() {
     let s = setup(3);

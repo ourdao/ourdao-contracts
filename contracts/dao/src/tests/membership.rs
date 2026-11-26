@@ -434,8 +434,11 @@ fn two_hop_delegation_chain_is_non_transitive() {
 
     // C only directly receives B's vote, not A's transitive vote (single-level)
     s.env.as_contract(&s.client.address, || {
-        // Base vote 100 + B's base vote 100 = 200
-        assert_eq!(crate::util::voting_weight(&s.env, &c), 200);
+        // C's own base vote + B's base vote
+        assert_eq!(
+            crate::util::voting_weight(&s.env, &c),
+            2 * crate::util::BASE_VOTE_WEIGHT
+        );
     });
 }
 
@@ -470,17 +473,23 @@ fn voting_weight_ignores_delegations_from_inactive_members() {
 
     s.client.delegate_vote(&a, &b);
 
-    // Before exit: B has weight 200 (100 base + 100 from A)
+    // Before exit: B has its own base vote plus A's
     s.env.as_contract(&s.client.address, || {
-        assert_eq!(crate::util::voting_weight(&s.env, &b), 200);
+        assert_eq!(
+            crate::util::voting_weight(&s.env, &b),
+            2 * crate::util::BASE_VOTE_WEIGHT
+        );
     });
 
     // A exits
     s.client.exit_dao(&a);
 
-    // After exit: B has weight 100 (A's delegation ignored because A is inactive)
+    // After exit: B has only its own base vote (A is inactive)
     s.env.as_contract(&s.client.address, || {
-        assert_eq!(crate::util::voting_weight(&s.env, &b), 100);
+        assert_eq!(
+            crate::util::voting_weight(&s.env, &b),
+            crate::util::BASE_VOTE_WEIGHT
+        );
     });
 }
 
@@ -558,4 +567,45 @@ fn repaid_borrower_can_rejoin_after_exit() {
     s.client.exit_dao(&a);
     s.client.register_member(&a);
     assert!(s.client.is_member(&a));
+}
+
+#[test]
+fn member_overview_matches_the_individual_views() {
+    let s = setup(2);
+    let member = s.members.get(0).unwrap();
+    let delegatee = s.members.get(1).unwrap();
+    let name = String::from_str(&s.env, "alice");
+    s.client.stake(&member, &200);
+    s.client.register_name(&member, &name);
+    s.client.delegate_vote(&member, &delegatee);
+
+    let overview = s.client.get_member_overview(&member);
+    assert_eq!(overview.member, s.client.get_member(&member).unwrap());
+    assert_eq!(overview.stake, 200);
+    assert_eq!(overview.pending_yield, s.client.get_pending_yield(&member));
+    assert_eq!(overview.loan_stats, s.client.get_member_loan_stats(&member));
+    assert_eq!(overview.name, Some(name));
+    assert_eq!(overview.delegate, Some(delegatee));
+
+    assert_eq!(
+        s.client.try_get_member_overview(&Address::generate(&s.env)),
+        Err(Ok(Error::NotMember))
+    );
+    assert_eq!(s.client.try_is_eligible_for_loan(&member), Ok(Ok(())));
+}
+
+#[test]
+fn list_members_pages_in_join_order() {
+    let s = setup(3);
+
+    let first_two = s.client.list_members(&0, &2);
+    assert_eq!(first_two.len(), 2);
+    assert_eq!(first_two.get(0).unwrap().address, s.members.get(0).unwrap());
+    assert_eq!(first_two.get(1).unwrap().address, s.members.get(1).unwrap());
+
+    let rest = s.client.list_members(&2, &5);
+    assert_eq!(rest.len(), 1);
+    assert_eq!(rest.get(0).unwrap().address, s.members.get(2).unwrap());
+
+    assert!(s.client.list_members(&5, &1).is_empty());
 }

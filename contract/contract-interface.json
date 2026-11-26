@@ -764,6 +764,27 @@
   },
   {
     "function_v0": {
+      "doc": "Releases `owner`'s registered name so they go nameless without\\nclaiming a replacement or exiting (#458). `owner` must authorize;\\nreturns `NameNotFound` if they hold no name and emits `name_rel`.",
+      "name": "release_name",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "owner",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
       "doc": "Removes an admin subject to the remaining-admin and signer rules.\\nThe caller must be an admin and authorize the call.",
       "name": "remove_admin",
       "inputs": [
@@ -1299,6 +1320,30 @@
       "inputs": [],
       "outputs": [
         "u32"
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns a loan's extension request, or `None` if it has none. A request\\nwhose vote ran out while pending is reported as `Expired`.",
+      "name": "get_loan_extension",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "loan_id",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "option": {
+            "value_type": {
+              "udt": {
+                "name": "LoanExtension"
+              }
+            }
+          }
+        }
       ]
     }
   },
@@ -2006,6 +2051,68 @@
   },
   {
     "function_v0": {
+      "doc": "Asks members for `extra_time` more on an active loan (ADR-0004).\\n`borrower` must authorize; one request per loan, filed early enough\\nthat its vote ends before the loan can be defaulted. Emits `ext_req`\\nwith the quoted fee. See `loans::request_loan_extension`.",
+      "name": "request_loan_extension",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "borrower",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "loan_id",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "extra_time",
+          "type": "u64"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Votes on a loan's extension request. `voter` must authorize and may not\\nbe the borrower; emits `ext_vote`, then `ext_appr` or `ext_rej` once the\\noutcome is decided. See `loans::vote_on_loan_extension`.",
+      "name": "vote_on_loan_extension",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "voter",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "loan_id",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "support",
+          "type": "bool"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
       "doc": "Returns the governance consensus threshold in basis points.\\nReturns `NotInitialized` before setup.",
       "name": "get_consensus_threshold",
       "inputs": [],
@@ -2591,7 +2698,7 @@
           "value": 60
         },
         {
-          "doc": "Reserved: never returned. No contract code path produces it; kept\\nbecause codes are append-only public ABI (#252).",
+          "doc": "`release_name` was called by an owner with no registered name (#458).",
           "name": "NameNotFound",
           "value": 61
         },
@@ -2779,6 +2886,31 @@
           "doc": "Checked `i128` arithmetic overflowed; the operation was rejected.",
           "name": "ArithmeticOverflow",
           "value": 100
+        },
+        {
+          "doc": "An `Active` loan in a `seed_loans` batch has a borrower not seeded with\\n`has_active_loan == true` (#455).",
+          "name": "SeedLoanMemberMismatch",
+          "value": 101
+        },
+        {
+          "doc": "The loan has already used its one extension request (ADR-0004).",
+          "name": "ExtensionAlreadyRequested",
+          "value": 102
+        },
+        {
+          "doc": "Too late to request an extension: the vote could not end before the\\nloan becomes markable as defaulted (ADR-0004).",
+          "name": "ExtensionWindowClosed",
+          "value": 103
+        },
+        {
+          "doc": "`extra_time` is zero or longer than `max_loan_duration` (ADR-0004).",
+          "name": "InvalidExtension",
+          "value": 104
+        },
+        {
+          "doc": "There is no extension request for this loan (ADR-0004).",
+          "name": "ExtensionNotFound",
+          "value": 105
         }
       ]
     }
@@ -3299,6 +3431,64 @@
     }
   },
   {
+    "udt_struct_v0": {
+      "doc": "A borrower's one request to push back a loan's `due_time` (ADR-0004).\\nKeyed by the loan's id, so no counter is added and `Loan` keeps its shape.",
+      "lib": "",
+      "name": "LoanExtension",
+      "fields": [
+        {
+          "doc": "",
+          "name": "against_votes",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "created_at",
+          "type": "u64"
+        },
+        {
+          "doc": "",
+          "name": "extra_time",
+          "type": "u64"
+        },
+        {
+          "doc": "Added to `Loan.total_repayment` only if the request is approved.",
+          "name": "fee",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "for_votes",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "loan_id",
+          "type": "u32"
+        },
+        {
+          "doc": "`Pending`, `Approved`, `Rejected`, or `Expired` (reported by\\n`get_loan_extension` once the vote has run out; never stored).",
+          "name": "status",
+          "type": {
+            "udt": {
+              "name": "ProposalStatus"
+            }
+          }
+        },
+        {
+          "doc": "",
+          "name": "votes_cast",
+          "type": "u32"
+        },
+        {
+          "doc": "`LoanPolicy.voting_period` copied at request time, like proposals do.",
+          "name": "voting_period",
+          "type": "u64"
+        }
+      ]
+    }
+  },
+  {
     "udt_union_v0": {
       "doc": "",
       "lib": "",
@@ -3594,6 +3784,11 @@
           "type": "address"
         },
         {
+          "doc": "End of the proposer's cancellation window: `created_at` plus the\\n`LoanPolicy.editing_period` in force at creation. Fixed then, like\\n`LoanProposal.editing_period_end`, so a later policy update cannot\\nmove an in-flight proposal's deadline (#452).",
+          "name": "editing_period_end",
+          "type": "u64"
+        },
+        {
           "doc": "",
           "name": "for_votes",
           "type": "i128"
@@ -3723,7 +3918,7 @@
   },
   {
     "udt_union_v0": {
-      "doc": "Distinguishes which proposal family a shared reference (docs, commits) targets.",
+      "doc": "Distinguishes which proposal family a shared reference (docs, commits) targets.\\n\\nExtension contract (#459): every new proposal-like feature must either\\n(a) append a variant here and give it a real arm in each `match` in\\n`docs.rs` (`proposal_exists`, `proposal_owner`, and the editing-phase check\\nin `attach_document`), or (b) be documented on its variant or in its ADR as\\ndeliberately excluded from document attachment, with `attach_document`\\nrejecting that kind with `InvalidProposal` (as `LoanExtension` does, per\\nADR-0004). The compiler also flags the matches in `has_voted` and\\n`migration::seed_docs`. Never rename or remove a variant: they encode by\\nname in stored keys and events.",
       "lib": "",
       "name": "ProposalKind",
       "cases": [
@@ -3737,6 +3932,12 @@
           "void_v0": {
             "doc": "",
             "name": "Treasury"
+          }
+        },
+        {
+          "void_v0": {
+            "doc": "A loan due-date extension request (ADR-0004), keyed by its loan id.\\nDeliberately excluded from document attachment: `attach_document`\\nrejects this kind with `InvalidProposal`.",
+            "name": "LoanExtension"
           }
         }
       ]

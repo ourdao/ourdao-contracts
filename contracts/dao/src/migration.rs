@@ -193,6 +193,8 @@ pub fn seed_docs(
             crate::storage::ProposalKind::Treasury => {
                 storage::set_next_treasury_id_at_least(env, entry.proposal_id + 1);
             }
+            // `attach_document` never stores one, so a seed can't carry one.
+            crate::storage::ProposalKind::LoanExtension => return Err(Error::InvalidProposal),
         }
     }
 

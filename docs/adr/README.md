@@ -37,6 +37,8 @@ Per ADR-0001, accepted decisions are immutable architecture history. Moving an A
 | [0001](./0001-immutable-contract-vs-upgradeable.md) | Immutable contract vs upgradeable contract | Accepted |
 | [0004](./0004-loan-extension.md) | Loan due-date extension proposals | Proposed |
 | [0005](./0005-reputation-rate.md) | Interest discount from member loan history | Proposed |
+| [0006](./0006-stake-collateral.md) | Stake-as-collateral loans | Proposed |
+| [0007](./0007-fee-governance.md) | Membership fee governance via timelock | Proposed |
 | [0008](./0008-early-repayment.md) | Early repayment discount | Proposed |
 | [0009](./0009-max-open-proposals-policy.md) | Evaluation of MAX_OPEN_PROPOSALS_PER_MEMBER in LoanPolicy | Proposed |
 | [0010](./0010-multi-asset-exit.md) | Multi-asset member exit payouts | Proposed |
@@ -52,6 +54,4 @@ a different decision.
 | --- | --- | --- |
 | 0002 | Unused (retired) | Never created. No issue, PR, or commit in this repository references an ADR-0002; the number was skipped when later ADRs were numbered. Retired permanently — do not reuse. |
 | 0003 | Unused (retired) | Never created. No issue, PR, or commit in this repository references an ADR-0003; the number was skipped when later ADRs were numbered. Retired permanently — do not reuse. |
-| 0006 | Reserved | Stake-as-collateral loans. Cited by the closed design issue #361 but never written; tracked by #435. Only that ADR may use this number. |
-| 0007 | Reserved | Membership fee governance via timelock. Cited by the closed design issue #362 but never written; tracked by #436. Only that ADR may use this number. |
 

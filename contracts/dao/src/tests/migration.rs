@@ -207,3 +207,63 @@ fn seed_loans_accepts_closed_loans_without_flag() {
     s.client.lock_seeding(&s.admin);
     assert_eq!(s.client.get_loan(&4).unwrap().status, LoanStatus::Repaid);
 }
+
+#[test]
+fn seed_stakes_yield_and_docs_restore_state_until_locked() {
+    let s = setup(1);
+    let member = s.members.get(0).unwrap();
+    assert!(!s.client.is_seeding_locked());
+
+    let stakes = Vec::from_array(
+        &s.env,
+        [SeedStakeEntry {
+            address: member.clone(),
+            amount: 300,
+        }],
+    );
+    s.client.seed_stakes(&s.admin, &stakes);
+    assert_eq!(s.client.get_stake(&member), 300);
+    assert_eq!(s.client.get_dao_summary().total_staked, 300);
+
+    let yields = Vec::from_array(
+        &s.env,
+        [SeedYieldEntry {
+            address: member.clone(),
+            amount: 40,
+        }],
+    );
+    s.client.seed_pending_yield(&s.admin, &yields);
+    assert_eq!(s.client.get_pending_yield(&member), 40);
+
+    let hash = soroban_sdk::Bytes::from_array(&s.env, b"QmSeededDocument");
+    let docs = Vec::from_array(
+        &s.env,
+        [
+            SeedDocEntry {
+                kind: ProposalKind::Loan,
+                proposal_id: 4,
+                content_hash: hash.clone(),
+            },
+            SeedDocEntry {
+                kind: ProposalKind::Treasury,
+                proposal_id: 2,
+                content_hash: hash.clone(),
+            },
+        ],
+    );
+    s.client.seed_docs(&s.admin, &docs);
+    assert_eq!(
+        s.client.get_document(&ProposalKind::Loan, &4),
+        Some(hash.clone())
+    );
+    assert_eq!(
+        s.client.get_document(&ProposalKind::Treasury, &2),
+        Some(hash)
+    );
+    // Seeded ids are reserved, so new proposals can't collide with them.
+    assert_eq!(s.client.get_loan_proposal_count(), 5);
+    assert_eq!(s.client.get_treasury_proposal_count(), 3);
+
+    s.client.lock_seeding(&s.admin);
+    assert!(s.client.is_seeding_locked());
+}

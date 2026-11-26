@@ -125,8 +125,9 @@ pub fn unstake(env: &Env, member: Address, amount: i128) -> Result<(), Error> {
     }
 
     // A vote cast with stake-derived weight must remain backed until that
-    // proposal closes. This includes loan ballots, treasury ballots, and
-    // unrevealed private commitments, not just the borrower's own request.
+    // proposal closes. This includes loan ballots, loan extension ballots
+    // (ADR-0004), treasury ballots, and unrevealed private commitments, not
+    // just the borrower's own request.
     let treasury_count = storage::get_proposal_count(env, storage::DataKey::NextTreasuryId);
     for id in 0..treasury_count {
         if let Some(p) = storage::get_treasury_proposal(env, id) {
@@ -152,6 +153,16 @@ pub fn unstake(env: &Env, member: Address, amount: i128) -> Result<(), Error> {
                 && storage::has_loan_voted(env, id, &member)
             {
                 return Err(Error::HasActiveLoan);
+            }
+        }
+        // Extensions share their loan's id, which is its proposal's id.
+        if storage::has_extension_voted(env, id, &member) {
+            if let Some(ext) = storage::get_loan_extension(env, id) {
+                if ext.status == ProposalStatus::Pending
+                    && env.ledger().timestamp() < ext.created_at.saturating_add(ext.voting_period)
+                {
+                    return Err(Error::HasActiveLoan);
+                }
             }
         }
     }

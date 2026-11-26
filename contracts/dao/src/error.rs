@@ -119,4 +119,16 @@ pub enum Error {
     TooManyVotesInBatch = 99,
     /// Checked `i128` arithmetic overflowed; the operation was rejected.
     ArithmeticOverflow = 100,
+    /// An `Active` loan in a `seed_loans` batch has a borrower not seeded with
+    /// `has_active_loan == true` (#455).
+    SeedLoanMemberMismatch = 101,
+    /// The loan has already used its one extension request (ADR-0004).
+    ExtensionAlreadyRequested = 102,
+    /// Too late to request an extension: the vote could not end before the
+    /// loan becomes markable as defaulted (ADR-0004).
+    ExtensionWindowClosed = 103,
+    /// `extra_time` is zero or longer than `max_loan_duration` (ADR-0004).
+    InvalidExtension = 104,
+    /// There is no extension request for this loan (ADR-0004).
+    ExtensionNotFound = 105,
 }

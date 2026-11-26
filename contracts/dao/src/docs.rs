@@ -18,6 +18,8 @@ fn proposal_exists(env: &Env, kind: &ProposalKind, id: u32) -> bool {
     match kind {
         ProposalKind::Loan => storage::get_loan_proposal(env, id).is_some(),
         ProposalKind::Treasury => storage::get_treasury_proposal(env, id).is_some(),
+        // Never attachable; `attach_document` rejects this kind before here.
+        ProposalKind::LoanExtension => false,
     }
 }
 
@@ -32,6 +34,8 @@ fn proposal_owner(env: &Env, kind: &ProposalKind, id: u32) -> Option<Address> {
     match kind {
         ProposalKind::Loan => storage::get_loan_proposal(env, id).map(|p| p.borrower),
         ProposalKind::Treasury => storage::get_treasury_proposal(env, id).map(|p| p.proposer),
+        // Never attachable; `attach_document` rejects this kind before here.
+        ProposalKind::LoanExtension => None,
     }
 }
 
@@ -49,6 +53,11 @@ pub fn attach_document(
     util::require_initialized(env)?;
     util::require_not_paused(env)?;
     util::auth_member(env, &caller)?;
+    // Extension requests carry no document of their own (ADR-0004); the
+    // borrower explains a request through the loan proposal's document.
+    if kind == ProposalKind::LoanExtension {
+        return Err(Error::InvalidProposal);
+    }
     if content_hash.len() > 64 {
         return Err(Error::DocumentTooLarge);
     }
@@ -82,6 +91,8 @@ pub fn attach_document(
                 }
             }
         }
+        // Rejected at the top of this function.
+        ProposalKind::LoanExtension => {}
     }
 
     storage::set_doc(env, kind, proposal_id, &content_hash);

@@ -93,18 +93,20 @@ pub fn initialize(
     if admins.len() > MAX_ADMINS {
         return Err(Error::TooManyAdmins);
     }
-    // Require every initial admin to authorize the initialization, preventing
-    // front-running: a stranger cannot supply their own admins vector (#66).
-    for a in admins.iter() {
-        a.require_auth();
-    }
     // Admins must be unique: `remove_admin` relies on it, and duplicates once
     // let it leave the contract with zero admins (#42). `first_index_of` is a
-    // single host call per admin, so this check stays linear.
+    // single host call per admin, so this check stays linear. It runs before
+    // the auth loop, which would otherwise trap on the second `require_auth`
+    // for the same address instead of returning this error.
     for (i, a) in admins.iter().enumerate() {
         if admins.first_index_of(&a) != Some(i as u32) {
             return Err(Error::AlreadyAdmin);
         }
+    }
+    // Require every initial admin to authorize the initialization, preventing
+    // front-running: a stranger cannot supply their own admins vector (#66).
+    for a in admins.iter() {
+        a.require_auth();
     }
     validate_policy(&policy)?;
     validate_token(env, &token)?;
@@ -148,8 +150,12 @@ pub fn add_admin(env: &Env, caller: Address, admin: Address) -> Result<(), Error
 pub fn remove_admin(env: &Env, caller: Address, admin: Address) -> Result<(), Error> {
     util::auth_admin(env, &caller)?;
     // Require the admin being removed to co-sign their own removal, so a single
-    // compromised key cannot silently purge all other admins (#67).
-    admin.require_auth();
+    // compromised key cannot silently purge all other admins (#67). A
+    // self-removal is already authorized above, and a second `require_auth`
+    // for the same address would trap.
+    if admin != caller {
+        admin.require_auth();
+    }
     let mut admins = storage::get_admins(env)?;
     if admins.len() <= 1 {
         return Err(Error::CannotRemoveLastAdmin);
@@ -305,6 +311,7 @@ pub fn unpause(env: &Env, caller: Address) -> Result<(), Error> {
 #[allow(deprecated)]
 pub fn propose_token_addition(env: &Env, caller: Address, token: Address) -> Result<(), Error> {
     util::require_initialized(env)?;
+    util::require_not_paused(env)?;
     util::auth_admin(env, &caller)?;
     if storage::is_token_whitelisted(env, &token) {
         return Err(Error::TokenAlreadyWhitelisted);
@@ -329,6 +336,7 @@ pub fn propose_token_addition(env: &Env, caller: Address, token: Address) -> Res
 #[allow(deprecated)]
 pub fn execute_token_addition(env: &Env, caller: Address, token: Address) -> Result<(), Error> {
     util::require_initialized(env)?;
+    util::require_not_paused(env)?;
     util::auth_admin(env, &caller)?;
     let execution_time =
         storage::get_pending_token_addition(env, &token).ok_or(Error::NoPendingTokenAddition)?;
@@ -353,6 +361,7 @@ pub fn execute_token_addition(env: &Env, caller: Address, token: Address) -> Res
 #[allow(deprecated)]
 pub fn remove_token(env: &Env, caller: Address, token: Address) -> Result<(), Error> {
     util::require_initialized(env)?;
+    util::require_not_paused(env)?;
     util::auth_admin(env, &caller)?;
     if token == storage::get_token(env)? {
         return Err(Error::CannotRemoveBaseToken);

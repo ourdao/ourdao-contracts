@@ -27,6 +27,10 @@ pub const LOAN_RPY: Symbol = symbol_short!("loan_rpy");
 pub const LOAN_EXP: Symbol = symbol_short!("loan_exp");
 pub const LOAN_DFLT: Symbol = symbol_short!("loan_dflt");
 pub const INTEREST: Symbol = symbol_short!("interest");
+pub const EXT_REQ: Symbol = symbol_short!("ext_req");
+pub const EXT_VOTE: Symbol = symbol_short!("ext_vote");
+pub const EXT_APPR: Symbol = symbol_short!("ext_appr");
+pub const EXT_REJ: Symbol = symbol_short!("ext_rej");
 
 pub const JOINED: Symbol = symbol_short!("joined");
 pub const NAME_REL: Symbol = symbol_short!("name_rel");

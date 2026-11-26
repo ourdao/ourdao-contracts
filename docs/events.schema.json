@@ -3,7 +3,7 @@
   "title": "OurDAO Event Schema",
   "type": "object",
   "description": "Machine-readable schema for all OurDAO contract events. Each key is an event topic symbol, and its value describes the expected payload structure.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "events": {
     "init": {
       "type": "object",
@@ -440,6 +440,75 @@
     "loan_dflt": {
       "type": "object",
       "properties": {},
+      "additionalProperties": false
+    },
+    "ext_req": {
+      "type": "object",
+      "properties": {
+        "loan_id": {
+          "type": "integer"
+        },
+        "borrower": {
+          "type": "string",
+          "format": "address"
+        },
+        "extra_time": {
+          "type": "integer"
+        },
+        "fee": {
+          "type": "integer"
+        }
+      },
+      "required": ["loan_id", "borrower", "extra_time", "fee"],
+      "additionalProperties": false
+    },
+    "ext_vote": {
+      "type": "object",
+      "properties": {
+        "loan_id": {
+          "type": "integer"
+        },
+        "voter": {
+          "type": "string",
+          "format": "address"
+        },
+        "support": {
+          "type": "boolean"
+        }
+      },
+      "required": ["loan_id", "voter", "support"],
+      "additionalProperties": false
+    },
+    "ext_appr": {
+      "type": "object",
+      "properties": {
+        "loan_id": {
+          "type": "integer"
+        },
+        "new_due_time": {
+          "type": "integer"
+        },
+        "new_total_repayment": {
+          "type": "integer"
+        }
+      },
+      "required": ["loan_id", "new_due_time", "new_total_repayment"],
+      "additionalProperties": false
+    },
+    "ext_rej": {
+      "type": "object",
+      "properties": {
+        "loan_id": {
+          "type": "integer"
+        },
+        "for_votes": {
+          "type": "integer"
+        },
+        "against_votes": {
+          "type": "integer"
+        }
+      },
+      "required": ["loan_id", "for_votes", "against_votes"],
       "additionalProperties": false
     },
     "interest": {
