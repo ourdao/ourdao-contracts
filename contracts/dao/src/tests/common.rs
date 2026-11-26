@@ -4,7 +4,6 @@ use soroban_sdk::testutils::{Address as _, Events as _, Ledger as _};
 use soroban_sdk::xdr::{ContractEventBody, ScVal};
 use soroban_sdk::{token, Address, Env, Vec};
 
-use crate::error::Error;
 use crate::types::LoanPolicy;
 use crate::{OurDao, OurDaoClient};
 
@@ -174,38 +173,6 @@ pub fn setup(num_members: u32) -> Setup<'static> {
 
 pub fn advance(env: &Env, secs: u64) {
     env.ledger().with_mut(|li| li.timestamp += secs);
-}
-
-// Mock token builders with different decimals
-
-pub fn create_token_with_decimals(env: &Env, decimals: u32) -> token::Client<'_> {
-    let issuer = Address::generate(env);
-    let sac = env.register_stellar_asset_contract_v2(issuer);
-    let token_id = sac.address();
-    let client = token::Client::new(env, &token_id);
-
-    // Set decimals through metadata
-    env.storage()
-        .instance()
-        .set(&("decimals", &token_id), &decimals);
-
-    client
-}
-
-pub fn create_token_0_decimals(env: &Env) -> token::Client<'_> {
-    create_token_with_decimals(env, 0)
-}
-
-pub fn create_token_6_decimals(env: &Env) -> token::Client<'_> {
-    create_token_with_decimals(env, 6)
-}
-
-pub fn create_token_7_decimals(env: &Env) -> token::Client<'_> {
-    create_token_with_decimals(env, 7)
-}
-
-pub fn create_token_18_decimals(env: &Env) -> token::Client<'_> {
-    create_token_with_decimals(env, 18)
 }
 
 // Fluent DAO setup builder

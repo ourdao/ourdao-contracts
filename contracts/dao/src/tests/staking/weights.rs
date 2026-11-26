@@ -119,9 +119,11 @@ fn staking_curve_boundary_tests() {
 
 #[test]
 fn staking_curve_boundary_voting_weight() {
-    let s = setup(2);
+    let s = setup(3);
     let staker = s.members.get(0).unwrap();
     let borrower = s.members.get(1).unwrap();
+    // The first loan stays active, so the second needs another borrower.
+    let second_borrower = s.members.get(2).unwrap();
 
     // Stake at the 5-bonus boundary: 2500 tokens = 5 bonus votes + 1 base = 6 voting weight.
     let at_5_bonus = STAKE_WEIGHT_UNIT * 5 * 5; // 2500
@@ -139,7 +141,7 @@ fn staking_curve_boundary_voting_weight() {
     let above_5_bonus = STAKE_WEIGHT_UNIT * 6 * 6; // 3600
     s.client.stake(&staker, &above_5_bonus);
 
-    let pid2 = s.client.request_loan(&borrower, &500, &None);
+    let pid2 = s.client.request_loan(&second_borrower, &500, &None);
     advance(&s.env, EDITING + 1);
     s.client.vote_on_loan_proposal(&staker, &pid2, &true);
 

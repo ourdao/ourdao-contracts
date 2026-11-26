@@ -358,6 +358,7 @@ Numeric codes are stable and part of the ABI — new variants get appended rathe
 | 98 | `TooManyAdmins` |
 | 99 | `TooManyVotesInBatch` |
 | 100 | `ArithmeticOverflow` |
+| 101 | `SeedLoanMemberMismatch` |
 
 ## Build & test
 

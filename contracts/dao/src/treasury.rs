@@ -139,7 +139,6 @@ pub fn tally(
     // electorate rule for both open votes and commit-reveal reveals (#73).
     let member = storage::get_member(env, voter).ok_or(Error::NotMember)?;
     util::require_in_electorate(&member, proposal.created_at)?;
-    proposal.votes_cast = proposal.votes_cast.saturating_add(1);
 
     let weight = util::voting_weight(env, voter);
     if support {

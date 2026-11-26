@@ -764,6 +764,27 @@
   },
   {
     "function_v0": {
+      "doc": "Releases `owner`'s registered name so they go nameless without\\nclaiming a replacement or exiting (#458). `owner` must authorize;\\nreturns `NameNotFound` if they hold no name and emits `name_rel`.",
+      "name": "release_name",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "owner",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
       "doc": "Removes an admin subject to the remaining-admin and signer rules.\\nThe caller must be an admin and authorize the call.",
       "name": "remove_admin",
       "inputs": [
@@ -2591,7 +2612,7 @@
           "value": 60
         },
         {
-          "doc": "Reserved: never returned. No contract code path produces it; kept\\nbecause codes are append-only public ABI (#252).",
+          "doc": "`release_name` was called by an owner with no registered name (#458).",
           "name": "NameNotFound",
           "value": 61
         },
@@ -2779,6 +2800,11 @@
           "doc": "Checked `i128` arithmetic overflowed; the operation was rejected.",
           "name": "ArithmeticOverflow",
           "value": 100
+        },
+        {
+          "doc": "An `Active` loan in a `seed_loans` batch has a borrower not seeded with\\n`has_active_loan == true` (#455).",
+          "name": "SeedLoanMemberMismatch",
+          "value": 101
         }
       ]
     }
@@ -3594,6 +3620,11 @@
           "type": "address"
         },
         {
+          "doc": "End of the proposer's cancellation window: `created_at` plus the\\n`LoanPolicy.editing_period` in force at creation. Fixed then, like\\n`LoanProposal.editing_period_end`, so a later policy update cannot\\nmove an in-flight proposal's deadline (#452).",
+          "name": "editing_period_end",
+          "type": "u64"
+        },
+        {
           "doc": "",
           "name": "for_votes",
           "type": "i128"
@@ -3723,7 +3754,7 @@
   },
   {
     "udt_union_v0": {
-      "doc": "Distinguishes which proposal family a shared reference (docs, commits) targets.",
+      "doc": "Distinguishes which proposal family a shared reference (docs, commits) targets.\\n\\nExtension contract (#459): every new proposal-like feature must either\\n(a) append a variant here and give it a real arm in each `match` in\\n`docs.rs` (`proposal_exists`, `proposal_owner`, and the editing-phase check\\nin `attach_document`), or (b) be documented on its variant or in its ADR as\\ndeliberately excluded from document attachment, with `attach_document`\\nrejecting that kind with `InvalidProposal` (as ADR-0004 plans for\\n`LoanExtension`). The compiler also flags the matches in `has_voted` and\\n`migration::seed_docs`. Never rename or remove a variant: they encode by\\nname in stored keys and events.",
       "lib": "",
       "name": "ProposalKind",
       "cases": [

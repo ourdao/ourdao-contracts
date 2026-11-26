@@ -400,7 +400,12 @@ fn vote_on_loan_proposal_internal(
                 .publish((crate::events::LOAN_WAIT,), (proposal.id, proposal.amount));
         }
     } else if proposal.status == ProposalStatus::Pending {
-        let remaining = proposal.active_members.saturating_sub(proposal.votes_cast);
+        // The borrower is in the electorate snapshot but may not vote on
+        // their own proposal (#327), so they are not a remaining vote.
+        let remaining = proposal
+            .active_members
+            .saturating_sub(proposal.votes_cast)
+            .saturating_sub(1);
         let vote_cap = ONE
             .checked_add(util::MAX_STAKE_BONUS)
             .ok_or(Error::ArithmeticOverflow)?;

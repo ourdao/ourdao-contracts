@@ -1,12 +1,12 @@
 extern crate std;
 
 use proptest::prelude::*;
-use soroban_sdk::testutils::{Address as _, Ledger as _};
+use soroban_sdk::testutils::Address as _;
 use soroban_sdk::{Address, String};
 
 use super::common::*;
 use crate::types::MemberStatus;
-use crate::{OurDao, OurDaoClient};
+use crate::OurDaoClient;
 
 #[derive(Clone, Copy, Debug)]
 enum Action {
@@ -44,19 +44,6 @@ fn check_invariants(env: &soroban_sdk::Env, client: &OurDaoClient<'_>) {
 
     let (total_members, active_members, active_contributions) =
         env.as_contract(&contract_id, || {
-            let addresses = crate::storage::get_members(env);
-            let mut active = 0u32;
-            let mut contributions = 0i128;
-
-            for address in addresses.iter() {
-                if let Some(member) = crate::storage::get_member(env, &address) {
-                    if member.status == MemberStatus::ActiveMember {
-                        active += 1;
-                        contributions = contributions.saturating_add(member.contribution);
-                    }
-                }
-            }
-
             (
                 crate::storage::get_total_members(env),
                 crate::storage::get_active_members(env),

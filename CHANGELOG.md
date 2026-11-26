@@ -10,7 +10,7 @@ This file records **what has changed**. For **what is deployed** (tagged release
 - **Storage layout:** `TreasuryProposal` gains an `editing_period_end` field (#452). Records written before this change do not decode under the new type. This is accepted rather than handled with a fallback: the contract is immutable with no in-place upgrade path (see `docs/MIGRATION.md`), and treasury proposals are not carried over by migration seeding, so no deployment running this code can hold a record without the field. Off-chain decoders of `get_treasury_proposal` must add the field.
 
 ### Added
-- `Error::SeedLoanMemberMismatch` (95), returned by `seed_loans` (#455).
+- `Error::SeedLoanMemberMismatch` (101), returned by `seed_loans` (#455).
 - Property test `total_staked_equals_sum_of_member_stakes` covering invariant L4 across random multi-member `stake` / `unstake` sequences; `docs/INVARIANTS.md` L4 is now ✅ (#454).
 
 ### Fixed
@@ -18,6 +18,13 @@ This file records **what has changed**. For **what is deployed** (tagged release
 - `stake` now rejects (`HasActiveLoan`, as `unstake` does for its vote lock) while the staker, or the delegatee it backs, holds an unrevealed commitment on a pending private treasury proposal. Weight is read live at reveal, so a voter could previously commit, watch other reveals move the public tally, then stake up before revealing (#453).
 - `seed_loans` rejects the whole batch with `SeedLoanMemberMismatch` when an `Active` loan's borrower has not been seeded or was seeded with `has_active_loan == false`, so invariant L2 can no longer be broken by out-of-sync migration batches; `docs/MIGRATION.md` documents the members-before-loans ordering and the reverse-direction checks that remain off-chain (#455).
 - `tests/migration.rs` is now registered in `tests/mod.rs` and runs.
+- The test suite compiles and passes again. Split-out test files gained their missing imports, `error_coverage.rs` calls the real entrypoints (`unstake`, `commit_treasury_vote` / `reveal_treasury_vote`, `claim_rewards`, `seed_members`), two tests truncated by a merge in `tests/treasury.rs` are closed, and tests written against since-changed rules are updated. Three tests whose scenario the contract now forbids are removed: removing a whitelisted token that still has an active loan or a treasury balance (#272, #273), and a pause table that expected `repay_loan` to stay callable while paused (#52 made it pause-gated). New tests cover `get_member_overview`, `list_members`, `list_treasury_proposals`, `list_loans`, `vote_batch`, `set_loan_policy`, the pending token addition views and the `seed_stakes` / `seed_pending_yield` / `seed_docs` entrypoints, which had lost their tests in the split and left line coverage below the 95% CI floor.
+- `tally` counted every treasury vote twice in `votes_cast`, so the early-rejection bound could reject a withdrawal that could still pass.
+- Loan early rejection no longer counts the borrower as a remaining vote, since they may not vote on their own proposal (#327). A loan that can no longer reach its threshold is now rejected instead of waiting out the voting period.
+- `initialize` checks for duplicate admins before collecting their auth, so a repeated address returns `AlreadyAdmin` instead of trapping, and `remove_admin` no longer asks a self-removing admin to authorize twice (which trapped before `CannotRemoveLastAdmin` could be returned).
+- `propose_token_addition`, `execute_token_addition` and `remove_token` are pause-gated, as `docs/PAUSE_FUNCTIONALITY.md` already stated (#527).
+- Removed the unused `util::ceil_div_nonnegative` helper and unused test helpers that failed `clippy -D warnings`.
+- The committed ABI and TypeScript bindings are regenerated; they were missing `release_name`, `TreasuryProposal.editing_period_end` and `SeedLoanMemberMismatch`.
 ### Added
 - Documented the `ProposalKind` extension contract: a new proposal-like feature either appends a variant and gives it a real arm in every `docs.rs` match, or is documented as excluded from document attachment and rejected with `InvalidProposal`. The note lives on `ProposalKind`, and `docs.rs` and `INVARIANTS.md` point to it. A test with an exhaustive match stops compiling when a variant is added (#459).
 - A test proving every `get_dao_summary().treasury_balances` entry matches `get_treasury_balance_in_asset` after funds move in three assets (stake in the base token, a loan in a second asset, a treasury withdrawal in a third), with the base token first in both the whitelist and the summary (#457).

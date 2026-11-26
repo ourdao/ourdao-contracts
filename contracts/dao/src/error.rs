@@ -119,4 +119,7 @@ pub enum Error {
     TooManyVotesInBatch = 99,
     /// Checked `i128` arithmetic overflowed; the operation was rejected.
     ArithmeticOverflow = 100,
+    /// An `Active` loan in a `seed_loans` batch has a borrower not seeded with
+    /// `has_active_loan == true` (#455).
+    SeedLoanMemberMismatch = 101,
 }

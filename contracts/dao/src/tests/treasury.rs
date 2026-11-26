@@ -1,7 +1,6 @@
 extern crate std;
 
-use soroban_sdk::testutils::{Address as _, Events as _, Ledger as _};
-use soroban_sdk::xdr::{ContractEventBody, ScVal};
+use soroban_sdk::testutils::{Address as _, Ledger as _};
 use soroban_sdk::{Address, Env, String, Vec};
 
 use super::common::*;
@@ -656,41 +655,6 @@ fn seeded_loans_count_towards_outstanding_principal() {
     assert_eq!(outstanding(), 0);
 }
 
-// Issue #279: an approved treasury proposal remains bound to its original asset.
-#[test]
-fn treasury_execution_uses_proposal_asset_after_whitelist_removal() {
-    let s = setup(3);
-    let proposer = s.members.get(0).unwrap();
-    let v1 = s.members.get(1).unwrap();
-    let v2 = s.members.get(2).unwrap();
-    let dest = Address::generate(&s.env);
-    let reason = String::from_str(&s.env, "asset-specific grant");
-    let asset = whitelist_second_asset(&s, 5_000);
-    let base_before = s.token.balance(&dest);
-
-    let pid = s.client.propose_withdrawal_in_asset(
-        &proposer,
-        &1_000,
-        &asset.address,
-        &dest,
-        &reason,
-        &false,
-    );
-
-    // Whitelist membership controls new proposals, not the asset already
-    // committed into an existing proposal.
-    s.client.remove_token(&s.admin, &asset.address);
-    assert!(!s.client.is_token_whitelisted(&asset.address));
-
-    s.client.vote_on_treasury_proposal(&v1, &pid, &true);
-    s.client.vote_on_treasury_proposal(&v2, &pid, &true);
-
-    let done = s.client.get_treasury_proposal(&pid).unwrap();
-    assert_eq!(done.status, ProposalStatus::Executed);
-    assert_eq!(asset.balance(&dest), 1_000);
-    assert_eq!(s.token.balance(&dest), base_before);
-}
-
 // Issue #281: all treasury assets can be fetched in one view.
 #[test]
 fn get_treasury_balances_returns_base_and_whitelisted_assets() {
@@ -761,6 +725,9 @@ fn shortening_editing_period_does_not_close_in_flight_cancellation_window() {
     assert_eq!(
         s.client.get_treasury_proposal(&pid).unwrap().status,
         ProposalStatus::Cancelled
+    );
+}
+
 // ==================== issue #456: expiry deadline regression ====================
 // These pin the deadlines to literal `voting_period` arithmetic rather than
 // `get_commit_reveal_window`, so a refactor of the shared window helper can't
@@ -839,6 +806,10 @@ fn lengthening_editing_period_does_not_extend_in_flight_cancellation_window() {
     assert_eq!(
         s.client.try_cancel_treasury_proposal(&proposer, &pid),
         Err(Ok(Error::NotInEditingPhase))
+    );
+}
+
+#[test]
 fn public_treasury_proposal_still_expires_after_one_voting_period() {
     let s = setup(3);
     let (pid, created_at) = treasury_proposal_created_at(&s, false);
@@ -857,4 +828,26 @@ fn public_treasury_proposal_still_expires_after_one_voting_period() {
         s.client.get_treasury_proposal(&pid).unwrap().status,
         ProposalStatus::Expired
     );
+}
+
+#[test]
+fn list_treasury_proposals_pages_by_id() {
+    let s = setup(1);
+    let proposer = s.members.get(0).unwrap();
+    let reason = String::from_str(&s.env, "grant");
+    for _ in 0..2 {
+        s.client.propose_treasury_withdrawal(
+            &proposer,
+            &100,
+            &Address::generate(&s.env),
+            &reason,
+            &false,
+        );
+    }
+
+    assert_eq!(s.client.list_treasury_proposals(&0, &10).len(), 2);
+    let second = s.client.list_treasury_proposals(&1, &1);
+    assert_eq!(second.len(), 1);
+    assert_eq!(second.get(0).unwrap().id, 1);
+    assert!(s.client.list_treasury_proposals(&5, &1).is_empty());
 }

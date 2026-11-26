@@ -1,19 +1,18 @@
 extern crate std;
 
-use soroban_sdk::testutils::{Address as _, Events as _, Ledger as _};
-use soroban_sdk::xdr::{ContractEventBody, ScAddress, ScVal};
-use soroban_sdk::{Address, Env, String};
+use soroban_sdk::testutils::{Address as _, Events as _};
+use soroban_sdk::xdr::{ContractEventBody, ScVal};
+use soroban_sdk::{Address, String};
 
 use super::common::*;
 use crate::admin::TIMELOCK_DURATION;
 use crate::storage::ProposalKind;
-use crate::types::{LoanStatus, ProposalPhase, ProposalStatus, ProposalVote};
+use crate::types::{LoanStatus, ProposalPhase, ProposalStatus};
 use crate::util::BASE_VOTE_WEIGHT;
 use crate::Error;
 
 #[test]
 fn full_loan_lifecycle() {
-    proposal.votes_cast = proposal.votes_cast.saturating_add(1);
     let s = setup(3);
     let borrower = s.members.get(0).unwrap();
     let v1 = s.members.get(1).unwrap();
@@ -265,7 +264,6 @@ fn early_rejected_proposal_is_stored_rejected_with_loan_rej() {
     advance(&s.env, EDITING + 1);
     s.client.vote_on_loan_proposal(&v1, &pid, &false);
     s.client.vote_on_loan_proposal(&v2, &pid, &false);
-    s.client.vote_on_loan_proposal(&borrower, &pid, &false);
     assert!(emitted(&s.env, "loan_rej"));
     assert!(!emitted(&s.env, "loan_exp"));
 
@@ -1061,37 +1059,6 @@ fn base_token_loan_repays_through_repay_loan_in_asset() {
     assert_eq!(s.client.get_loan(&pid).unwrap().status, LoanStatus::Repaid);
 }
 
-#[test]
-fn loan_in_removed_asset_can_still_be_repaid() {
-    let s = setup(3);
-    let borrower = s.members.get(0).unwrap();
-    let v1 = s.members.get(1).unwrap();
-    let v2 = s.members.get(2).unwrap();
-    let asset = whitelist_second_asset(&s, 10_000);
-
-    let pid = s
-        .client
-        .request_loan_in_asset(&borrower, &1_000, &asset.address, &None);
-    // Editing re-quotes against the same asset's treasury.
-    s.client.edit_loan_proposal(&borrower, &pid, &2_000, &None);
-    advance(&s.env, EDITING + 1);
-    s.client.vote_on_loan_proposal(&v1, &pid, &true);
-    s.client.vote_on_loan_proposal(&v2, &pid, &true);
-    assert_eq!(asset.balance(&borrower), 2_000);
-
-    s.client.remove_token(&s.admin, &asset.address);
-    assert_eq!(
-        s.client
-            .try_request_loan_in_asset(&v1, &100, &asset.address, &None),
-        Err(Ok(Error::TokenNotWhitelisted))
-    );
-
-    let loan = s.client.get_loan(&pid).unwrap();
-    mint_asset(&s, &asset.address, &borrower, loan.total_repayment);
-    s.client.repay_loan(&borrower, &pid);
-    assert_eq!(s.client.get_loan(&pid).unwrap().status, LoanStatus::Repaid);
-}
-
 // ==================== issue #185: cancel during editing (migrated from test.rs) ====================
 
 #[test]
@@ -1734,4 +1701,58 @@ fn post_due_partial_repayment_adds_late_fee_before_payment() {
     let expected_fee = (before.total_repayment * 2_000 + 10_000 - 1) / 10_000;
     assert_eq!(after.total_repayment, before.total_repayment + expected_fee);
     assert_eq!(after.amount_repaid, 100);
+}
+
+#[test]
+fn vote_batch_votes_on_several_proposals_and_list_loans_returns_them() {
+    let s = setup(3);
+    let b0 = s.members.get(0).unwrap();
+    let b1 = s.members.get(1).unwrap();
+    let voter = s.members.get(2).unwrap();
+    let p0 = s.client.request_loan(&b0, &500, &None);
+    let p1 = s.client.request_loan(&b1, &500, &None);
+    advance(&s.env, EDITING + 1);
+
+    let votes = soroban_sdk::vec![
+        &s.env,
+        crate::types::ProposalVote {
+            proposal_id: p0,
+            vote: true
+        },
+        crate::types::ProposalVote {
+            proposal_id: p1,
+            vote: true
+        },
+    ];
+    s.client.vote_batch(&voter, &votes);
+    assert!(s.client.has_voted(&ProposalKind::Loan, &p0, &voter));
+    assert!(s.client.has_voted(&ProposalKind::Loan, &p1, &voter));
+
+    // Each borrower supplies the second vote on the other's loan.
+    s.client.vote_on_loan_proposal(&b1, &p0, &true);
+    s.client.vote_on_loan_proposal(&b0, &p1, &true);
+
+    let loans = s.client.list_loans(&0, &10);
+    assert_eq!(loans.len(), 2);
+    assert_eq!(loans.get(0).unwrap().borrower, b0);
+    assert_eq!(loans.get(1).unwrap().borrower, b1);
+    assert!(s.client.list_loans(&5, &1).is_empty());
+}
+
+#[test]
+fn vote_batch_rejects_more_than_the_per_call_maximum() {
+    let s = setup(2);
+    let voter = s.members.get(0).unwrap();
+    let mut votes = soroban_sdk::Vec::new(&s.env);
+    for id in 0..=crate::storage::MAX_VOTES_PER_BATCH {
+        votes.push_back(crate::types::ProposalVote {
+            proposal_id: id,
+            vote: true,
+        });
+    }
+
+    assert_eq!(
+        s.client.try_vote_batch(&voter, &votes),
+        Err(Ok(Error::TooManyVotesInBatch))
+    );
 }

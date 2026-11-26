@@ -187,7 +187,7 @@ proptest! {
 
         let asset = client.get_token();
         env.as_contract(&contract_id, || {
-            crate::loans::distribute_interest(&env, interest, &asset);
+            crate::loans::distribute_interest(&env, interest, &asset).unwrap();
         });
 
         let per_member = interest / active as i128;
@@ -257,8 +257,12 @@ proptest! {
         ]),
     ) {
         let (_env, client) = contract_with_treasury(treasury.min(AMOUNT_BOUND));
-        let terms = client.calculate_loan_terms(&amount);
-        prop_assert!(terms.total_repayment >= amount);
+        // A product too large for `i128` is rejected with an error code,
+        // never wrapped and never a trap.
+        match client.try_calculate_loan_terms(&amount) {
+            Ok(Ok(terms)) => prop_assert!(terms.total_repayment >= amount),
+            other => prop_assert_eq!(other, Err(Ok(crate::Error::ArithmeticOverflow))),
+        }
     }
 }
 proptest! {
@@ -286,7 +290,7 @@ proptest! {
 
         let asset = client.get_token();
         env.as_contract(&contract_id, || {
-            crate::loans::distribute_interest(&env, interest, &asset);
+            crate::loans::distribute_interest(&env, interest, &asset).unwrap();
         });
 
         let per_member = interest / active as i128;
@@ -320,8 +324,11 @@ proptest! {
         ),
     ) {
         let s = setup(0);
+        // Every iteration joins a fresh address; a rejoin leaves it active.
+        let mut active = 0u32;
 
-        for rejoin in joins {
+        for (i, rejoin) in joins.into_iter().enumerate() {
+            let total = i as u32 + 1;
             let member = Address::generate(&s.env);
             let mint = token::StellarAssetClient::new(
                 &s.env,
@@ -330,17 +337,19 @@ proptest! {
             mint.mint(&member, &MINT);
 
             s.client.register_member(&member);
-            prop_assert_eq!(s.client.get_active_members(), 1);
-            prop_assert_eq!(s.client.get_total_members(), 1);
+            prop_assert_eq!(s.client.get_active_members(), active + 1);
+            prop_assert_eq!(s.client.get_total_members(), total);
 
             s.client.exit_dao(&member);
-            prop_assert_eq!(s.client.get_active_members(), 0);
+            prop_assert_eq!(s.client.get_active_members(), active);
 
             if rejoin {
                 mint.mint(&member, &FEE);
                 s.client.register_member(&member);
-                prop_assert_eq!(s.client.get_active_members(), 1);
-                prop_assert_eq!(s.client.get_total_members(), 1);
+                active += 1;
+                prop_assert_eq!(s.client.get_active_members(), active);
+                // A rejoin reuses the existing record, so the total is unchanged.
+                prop_assert_eq!(s.client.get_total_members(), total);
 
                 let status = s.env.as_contract(&s.client.address, || {
                     crate::storage::get_member(&s.env, &member).unwrap().status

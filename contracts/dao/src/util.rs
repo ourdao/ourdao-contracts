@@ -209,13 +209,6 @@ pub fn get_max_stake_bonus() -> i128 {
     MAX_STAKE_BONUS
 }
 
-/// Treasury-favouring ceiling division for non-negative money or rate numerators.
-/// Assumes a strictly positive denominator and non-negative numerator.
-pub fn ceil_div_nonnegative(value: i128, divisor: i128) -> i128 {
-    assert!(value >= 0 && divisor > 0);
-    value / divisor + i128::from(value % divisor != 0)
-}
-
 /// A proposal's electorate is the set of members active when it was created;
 /// its quorum is computed from that count (#73). A member who joined, or
 /// rejoined after exiting, after `proposal_created_at` was not part of that

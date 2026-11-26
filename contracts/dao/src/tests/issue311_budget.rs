@@ -1,3 +1,11 @@
+extern crate std;
+
+use soroban_sdk::testutils::Address as _;
+use soroban_sdk::{Address, String};
+
+use super::common::*;
+use crate::types::{LoanStatus, ProposalStatus};
+
 // ==================== issue #311: budget regression tests for heavy entrypoints ====================
 // Regression tests for the heaviest contract entrypoints: loan lifecycle,
 // treasury withdrawals, and policy updates - focusing on budget/fee consumption
@@ -40,13 +48,18 @@ fn heavy_treasury_entrypoint_budget_regression() {
     let v2 = s.members.get(2).unwrap();
     let dest = Address::generate(&s.env);
 
+    // Fund the treasury for all ten withdrawals (5,500 in total).
+    soroban_sdk::token::StellarAssetClient::new(&s.env, &s.token.address)
+        .mint(&s.client.address, &5_500);
+
     // Issue many treasury withdrawals in sequence
+    let mut paid = 0i128;
     for i in 0..10 {
         let pid = s.client.propose_treasury_withdrawal(
             &proposer,
-            &100 * (i as i128 + 1),
+            &(100 * (i as i128 + 1)),
             &dest,
-            &String::from_str(&s.env, &format!("withdrawal {}", i)),
+            &String::from_str(&s.env, &std::format!("withdrawal {}", i)),
             &false,
         );
         advance(&s.env, 1);
@@ -55,12 +68,11 @@ fn heavy_treasury_entrypoint_budget_regression() {
         s.client.vote_on_treasury_proposal(&v1, &pid, &true);
         s.client.vote_on_treasury_proposal(&v2, &pid, &true);
 
-        // Execute if approved
+        // Reaching the threshold executes the withdrawal immediately.
         let prop = s.client.get_treasury_proposal(&pid).unwrap();
-        if prop.status == ProposalStatus::ApprovedPendingDisbursement {
-            s.client.execute_treasury_proposal(&pid);
-            assert_eq!(s.token.balance(&dest), 100 * (i as i128 + 1));
-        }
+        assert_eq!(prop.status, ProposalStatus::Executed);
+        paid += 100 * (i as i128 + 1);
+        assert_eq!(s.token.balance(&dest), paid);
     }
 
     // Verify all funds disbursed
@@ -70,7 +82,7 @@ fn heavy_treasury_entrypoint_budget_regression() {
 #[test]
 fn policy_update_entrypoint_budget_regression() {
     let s = setup(2);
-    let mut policy = s.client.get_policy().unwrap();
+    let mut policy = s.client.get_loan_policy();
     policy.max_interest_rate = 1_500;
     policy.min_interest_rate = 500;
 
@@ -79,7 +91,7 @@ fn policy_update_entrypoint_budget_regression() {
     advance(&s.env, crate::admin::TIMELOCK_DURATION);
     s.client.execute_policy_update(&s.admin);
 
-    let updated = s.client.get_policy().unwrap();
+    let updated = s.client.get_loan_policy();
     assert_eq!(updated.max_interest_rate, 1_500);
     assert_eq!(updated.min_interest_rate, 500);
 }
