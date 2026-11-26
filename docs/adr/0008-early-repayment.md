@@ -79,7 +79,7 @@ Worked example: principal 1,000, rate 10% (interest 100), term 30 days.
 ### Where it applies
 
 - **Only a full payoff.** `repay_loan` / `repay_loan_in_asset` (amount
-  omitted) and `repay_loan_partial` / `repay_partial` when the amount equals
+  omitted) and `repay_loan_partial` when the amount equals
   the discounted `payoff_amount`. A partial payment that leaves a balance
   gets no discount and is split interest-first as today. When the payoff
   closes the loan, `total_repayment` is lowered by `rebate` before the

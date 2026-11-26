@@ -57,6 +57,12 @@ property test exists. Tracking issue: open as follow-up (#134).
 default slashing), never incremented to mirror actual joins. This is a known
 inconsistency; tracking issue: open as follow-up (#134).
 
+> **Note (#448):** The never-written `DataKey::TotalContributions` storage key
+> and its `get_total_contributions` / `set_total_contributions` helpers were
+> deleted as dead code. The running total `calculate_exit_share` actually
+> reads is `DataKey::ActiveContributions`, maintained by `register_member`,
+> `exit_dao`, and `mark_loan_defaulted`.
+
 > **Note:** This is the invariant whose absence is hardest to notice without a
 > written list. A stated invariant is what makes the contradiction visible.
 

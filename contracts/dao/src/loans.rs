@@ -588,28 +588,6 @@ pub fn repay_loan_partial(
     repay_loan_internal(env, borrower, loan_id, Some(amount))
 }
 
-// Not wired to an entrypoint; kept unchanged from the pre-merge version.
-#[allow(dead_code, deprecated)]
-pub fn repay_partial(env: &Env, borrower: Address, amount: i128) -> Result<(), Error> {
-    let next_id = storage::next_id(env, storage::DataKey::NextProposalId);
-    let mut loan_id_opt = None;
-    for i in 1..next_id {
-        if let Some(loan) = storage::get_loan(env, i) {
-            if loan.borrower == borrower && loan.status == LoanStatus::Active {
-                loan_id_opt = Some(i);
-                break;
-            }
-        }
-    }
-    let loan_id = loan_id_opt.ok_or(Error::LoanNotFound)?;
-    repay_loan_internal(env, borrower.clone(), loan_id, Some(amount))?;
-    env.events().publish(
-        (soroban_sdk::String::from_str(env, "loan_partial_repaid"),),
-        (borrower, amount),
-    );
-    Ok(())
-}
-
 #[allow(deprecated)]
 fn repay_loan_internal(
     env: &Env,

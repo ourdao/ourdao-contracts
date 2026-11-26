@@ -266,7 +266,6 @@ Each published topic and its event payload are listed below. `ourdao-backend` in
 | `loan_rej` | `(proposal_id, for_votes, against_votes)` | `vote_on_loan_proposal` / `vote_batch` when approval becomes unreachable |
 | `loan_appr` | `(id, borrower, amount, due_time, asset)` | Loan disbursement after approval; `id` is also the proposal ID |
 | `loan_rpy` | `(loan_id, borrower, remaining, asset)` | `repay_loan` / `repay_loan_partial` / `repay_loan_in_asset` |
-| `loan_partial_repaid` | `(borrower, amount)` | Legacy `loans::repay_partial` helper |
 | `interest` | `(interest, active_members, asset)` | Interest distribution during loan repayment |
 | `loan_dflt` | `(loan_id, borrower, penalty)` | `mark_loan_defaulted` |
 | `loan_exp` | `(proposal_id, borrower)` | `expire_loan_proposal` |
@@ -508,6 +507,10 @@ Found a vulnerability? See [SECURITY.md](./SECURITY.md) for scope and how to rep
 - External security audit before any mainnet consideration.
 - Implement the `seed_state` migration entrypoint designed in [`docs/MIGRATION.md`](./docs/MIGRATION.md) (the doc itself is done; the contract-side entrypoint is a follow-up).
 - Deeper integration testing against `ourdao-backend`'s indexer (event schema drift detection).
+  The [`Integration Test`](./.github/workflows/integration.yml) workflow is a placeholder for this
+  and is **disabled** (it runs only when triggered by hand, never on push or PR) until the scripts it
+  calls exist: `scripts/start-local-network.sh`, `scripts/run-test-actions.sh`,
+  `scripts/start-backend-indexer.sh` and `scripts/assert-db-rows.sh` (#444).
 
 ## Contributing
 

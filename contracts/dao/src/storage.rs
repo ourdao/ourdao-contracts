@@ -76,7 +76,6 @@ pub(crate) enum DataKey {
     Name(String),
     NameOf(Address),
     Commit(u32, Address),
-    TotalContributions,
     /// Running sum of `contribution` over members whose status is
     /// `ActiveMember` (#353). Kept in sync by register / exit / default.
     ActiveContributions,
@@ -254,21 +253,6 @@ pub fn get_total_members(env: &Env) -> u32 {
 
 pub fn set_total_members(env: &Env, n: u32) {
     env.storage().instance().set(&DataKey::TotalMembers, &n);
-}
-
-#[allow(dead_code)]
-pub fn get_total_contributions(env: &Env) -> i128 {
-    env.storage()
-        .instance()
-        .get(&DataKey::TotalContributions)
-        .unwrap_or(0)
-}
-
-#[allow(dead_code)]
-pub fn set_total_contributions(env: &Env, amount: i128) {
-    env.storage()
-        .instance()
-        .set(&DataKey::TotalContributions, &amount);
 }
 
 pub fn get_active_contributions(env: &Env) -> i128 {

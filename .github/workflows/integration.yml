@@ -1,10 +1,20 @@
 name: Integration Test
 
+# DISABLED (#444): this job calls four scripts that do not exist yet —
+# start-local-network.sh, run-test-actions.sh, start-backend-indexer.sh and
+# assert-db-rows.sh — so on push/PR it failed at "Set up local network" every
+# time and reported a permanently red, misleading check.
+#
+# It now runs only when triggered by hand. Put the `push` / `pull_request`
+# triggers back in the same PR that adds those scripts to scripts/. That work
+# is the README roadmap item "Deeper integration testing against
+# ourdao-backend's indexer":
+# https://github.com/ourdao/ourdao-contracts#roadmap
+#
+# contracts/dao/src/tests/repo_hygiene.rs fails if push/PR triggers come back
+# while any script this workflow calls is still missing.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
