@@ -146,6 +146,56 @@ fn integration_workflow_only_runs_automatically_when_its_scripts_exist() {
     }
 }
 
+// ==================== issues #435, #436: reserved ADRs written ====================
+#[test]
+fn reserved_adrs_0006_and_0007_are_written_and_indexed() {
+    let readme = read("docs/adr/README.md");
+    for (num, slug, title, topics) in [
+        (
+            "0006",
+            "stake-collateral",
+            "Stake-as-collateral loans",
+            [
+                "voting_weight",
+                "treasury_balance_in_asset",
+                "default_penalty_bps",
+                "ADR-0008",
+            ],
+        ),
+        (
+            "0007",
+            "fee-governance",
+            "Membership fee governance via timelock",
+            [
+                "propose_policy_update",
+                "TIMELOCK_DURATION",
+                "Member.contribution",
+                "register_member",
+            ],
+        ),
+    ] {
+        let path = std::format!("docs/adr/{num}-{slug}.md");
+        let adr = read(&path);
+        assert!(adr.starts_with(&std::format!("# ADR-{num}: {title}\n")));
+        assert!(adr.contains("- **Status:** Proposed"));
+        for section in [
+            "## Context",
+            "## Decision",
+            "## Alternatives considered",
+            "## Consequences",
+        ] {
+            assert!(adr.contains(section), "{path} is missing {section}");
+        }
+        for topic in topics {
+            assert!(adr.contains(topic), "{path} does not address {topic}");
+        }
+        assert!(readme.contains(&std::format!(
+            "| [{num}](./{num}-{slug}.md) | {title} | Proposed |"
+        )));
+        assert!(!readme.contains(&std::format!("| {num} | Reserved")));
+    }
+}
+
 // ==================== issue #440: stale pauser-error note ====================
 #[test]
 fn admin_guide_lists_the_pauser_errors_that_error_rs_defines() {

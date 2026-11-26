@@ -26,6 +26,7 @@ This file records **what has changed**. For **what is deployed** (tagged release
 - Removed the unused `util::ceil_div_nonnegative` helper and unused test helpers that failed `clippy -D warnings`.
 - The committed ABI and TypeScript bindings are regenerated; they were missing `release_name`, `TreasuryProposal.editing_period_end` and `SeedLoanMemberMismatch`.
 ### Added
+- ADR-0006 (stake-as-collateral loans) and ADR-0007 (membership fee governance via timelock), both `Proposed`, replacing their reserved rows in the ADR index (#435, #436).
 - Documented the `ProposalKind` extension contract: a new proposal-like feature either appends a variant and gives it a real arm in every `docs.rs` match, or is documented as excluded from document attachment and rejected with `InvalidProposal`. The note lives on `ProposalKind`, and `docs.rs` and `INVARIANTS.md` point to it. A test with an exhaustive match stops compiling when a variant is added (#459).
 - A test proving every `get_dao_summary().treasury_balances` entry matches `get_treasury_balance_in_asset` after funds move in three assets (stake in the base token, a loan in a second asset, a treasury withdrawal in a third), with the base token first in both the whitelist and the summary (#457).
 - `release_name(owner)` lets a member give up their registered name without claiming a replacement or exiting the DAO. It requires `owner` auth, is pause-gated, emits the existing `name_rel` event, and returns `NameNotFound` (61, previously reserved and never returned) when `owner` holds no name (#458).
