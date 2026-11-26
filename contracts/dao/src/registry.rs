@@ -74,3 +74,25 @@ pub fn name_of(env: &Env, owner: Address) -> Result<Option<String>, Error> {
     util::require_initialized(env)?;
     Ok(storage::get_name_of(env, &owner))
 }
+
+/// Gives up `owner`'s registered name without claiming a replacement or
+/// leaving the DAO (#458). Emits the same `name_rel` event as the
+/// release-on-rename and release-on-exit paths, so the set of free names
+/// stays reconstructable from the event log (#124).
+#[allow(deprecated)]
+pub fn release_name(env: &Env, owner: Address) -> Result<(), Error> {
+    util::require_initialized(env)?;
+    util::require_not_paused(env)?;
+    owner.require_auth();
+
+    let name = storage::get_name_of(env, &owner).ok_or(Error::NameNotFound)?;
+    env.storage()
+        .persistent()
+        .remove(&DataKey::Name(name.clone()));
+    env.storage()
+        .persistent()
+        .remove(&DataKey::NameOf(owner.clone()));
+    env.events()
+        .publish((crate::events::NAME_REL,), (name, owner));
+    Ok(())
+}

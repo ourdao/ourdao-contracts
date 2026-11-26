@@ -154,14 +154,41 @@ fn validate_policy_rejects_quorum_bps_above_basis_points() {
     assert_eq!(res, Err(Ok(Error::InvalidLoanPolicy)));
 }
 
-// Issue #320: Validate quorum_bps within 1..=10000 on policy updates
+// Issue #450: `quorum_bps == 0` is the fallback-to-consensus sentinel. It is
+// accepted at initialize, so it must be accepted on a policy update too.
 #[test]
-fn validate_policy_rejects_zero_quorum_bps() {
+fn initialize_and_propose_policy_update_agree_on_zero_quorum_bps() {
     let mut p = policy();
     p.quorum_bps = 0;
+
+    let env = Env::default();
+    env.mock_all_auths();
+    let token = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    let client = OurDaoClient::new(&env, &env.register(OurDao, ()));
+    let admin = Address::generate(&env);
+    let mut admins = Vec::new(&env);
+    admins.push_back(admin.clone());
+    assert_eq!(
+        client.try_initialize(&admins, &5_100, &FEE, &token, &p),
+        Ok(Ok(()))
+    );
+
+    // Move a DAO to an explicit quorum, then back to the sentinel: the update
+    // path must accept and apply `quorum_bps == 0` just as initialize did.
     let s = setup(1);
-    let res = s.client.try_propose_policy_update(&s.admin, &p);
-    assert_eq!(res, Err(Ok(Error::InvalidLoanPolicy)));
+    let mut explicit = p.clone();
+    explicit.quorum_bps = 5_000;
+    s.client.propose_policy_update(&s.admin, &explicit);
+    advance(&s.env, TIMELOCK_DURATION);
+    s.client.execute_policy_update(&s.admin);
+    assert_eq!(s.client.get_loan_policy().quorum_bps, 5_000);
+
+    assert_eq!(s.client.try_propose_policy_update(&s.admin, &p), Ok(Ok(())));
+    advance(&s.env, TIMELOCK_DURATION);
+    s.client.execute_policy_update(&s.admin);
+    assert_eq!(s.client.get_loan_policy().quorum_bps, 0);
 }
 
 /// Every bound enforced by `admin::validate_policy` is exercised here. This
@@ -172,6 +199,7 @@ fn propose_policy_update_rejects_every_invalid_bound() {
     let cases: [fn(&mut crate::types::LoanPolicy); 19] = [
         |p| p.membership_contribution = 0,
         |p| p.max_loan_duration = 0,
+        |p| p.max_loan_duration = crate::admin::MAX_LOAN_DURATION + 1,
         |p| p.min_interest_rate = 10_001,
         |p| p.max_interest_rate = 10_001,
         |p| {
@@ -189,7 +217,6 @@ fn propose_policy_update_rejects_every_invalid_bound() {
         |p| p.default_grace_period = 30 * 24 * 60 * 60 + 1,
         |p| p.treasury_threshold = 0,
         |p| p.treasury_threshold = 10_001,
-        |p| p.quorum_bps = 0,
         |p| p.quorum_bps = 10_001,
     ];
     for mutate in cases {

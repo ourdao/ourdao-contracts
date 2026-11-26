@@ -47,8 +47,7 @@ pub enum Error {
 
     // ---- staking, registry, and documents ----
     NameTaken = 60,
-    /// Reserved: never returned. No contract code path produces it; kept
-    /// because codes are append-only public ABI (#252).
+    /// `release_name` was called by an owner with no registered name (#458).
     NameNotFound = 61,
     NoStake = 62,
     InsufficientStake = 63,
@@ -104,7 +103,20 @@ pub enum Error {
     /// A returning member still has a loan outstanding or a defaulted loan on
     /// record, so they may not rejoin and reset their standing (#168).
     DefaultedLoanOutstanding = 94,
-    /// `seed_loans` got an `Active` loan whose borrower has not been seeded,
-    /// or was seeded with `has_active_loan == false` (invariant L2, #455).
-    SeedLoanMemberMismatch = 95,
+    // 95-100 restore variants that concurrent merges each numbered 92-97 and
+    // that a later merge dropped while their call sites stayed in place. They
+    // are appended rather than reclaiming those slots, so no shipped code moves.
+    /// The treasury asset whitelist has reached its bounded maximum (#282).
+    WhitelistFull = 95,
+    /// An inbound token transfer delivered less than the requested amount (#283).
+    TransferAmountMismatch = 96,
+    /// The voter joined (or rejoined) the DAO after the proposal was created,
+    /// so they are outside the electorate its quorum was fixed against (#73).
+    JoinedAfterProposal = 97,
+    /// Admin list has reached MAX_ADMINS; remove one before adding another (#68).
+    TooManyAdmins = 98,
+    /// Batch vote call exceeded the maximum number of votes allowed per call.
+    TooManyVotesInBatch = 99,
+    /// Checked `i128` arithmetic overflowed; the operation was rejected.
+    ArithmeticOverflow = 100,
 }

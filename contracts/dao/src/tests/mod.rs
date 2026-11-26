@@ -13,6 +13,7 @@ mod migration;
 mod privacy;
 mod properties;
 mod registry;
+mod repo_hygiene;
 mod staking;
 mod stateful;
 mod treasury;

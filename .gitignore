@@ -12,3 +12,6 @@
 .idea/
 .vscode/
 .DS_Store
+
+# Built TypeScript bindings (npm run build in bindings/ts)
+/bindings/ts/dist

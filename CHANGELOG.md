@@ -2,6 +2,8 @@
 
 All notable changes to `ourdao-contracts` are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to follow [Semantic Versioning](https://semver.org/). Update the workspace version in `Cargo.toml` alongside each dated release heading.
 
+This file records **what has changed**. For **what is deployed** (tagged releases, contract IDs per network, and verified wasm hashes), see [DEPLOYMENTS.md](DEPLOYMENTS.md). A version heading here does not mean that version has been tagged or deployed.
+
 ## [Unreleased]
 
 ### Changed
@@ -16,9 +18,31 @@ All notable changes to `ourdao-contracts` are documented here. The format follow
 - `stake` now rejects (`HasActiveLoan`, as `unstake` does for its vote lock) while the staker, or the delegatee it backs, holds an unrevealed commitment on a pending private treasury proposal. Weight is read live at reveal, so a voter could previously commit, watch other reveals move the public tally, then stake up before revealing (#453).
 - `seed_loans` rejects the whole batch with `SeedLoanMemberMismatch` when an `Active` loan's borrower has not been seeded or was seeded with `has_active_loan == false`, so invariant L2 can no longer be broken by out-of-sync migration batches; `docs/MIGRATION.md` documents the members-before-loans ordering and the reverse-direction checks that remain off-chain (#455).
 - `tests/migration.rs` is now registered in `tests/mod.rs` and runs.
+### Added
+- Documented the `ProposalKind` extension contract: a new proposal-like feature either appends a variant and gives it a real arm in every `docs.rs` match, or is documented as excluded from document attachment and rejected with `InvalidProposal`. The note lives on `ProposalKind`, and `docs.rs` and `INVARIANTS.md` point to it. A test with an exhaustive match stops compiling when a variant is added (#459).
+- A test proving every `get_dao_summary().treasury_balances` entry matches `get_treasury_balance_in_asset` after funds move in three assets (stake in the base token, a loan in a second asset, a treasury withdrawal in a third), with the base token first in both the whitelist and the summary (#457).
+- `release_name(owner)` lets a member give up their registered name without claiming a replacement or exiting the DAO. It requires `owner` auth, is pause-gated, emits the existing `name_rel` event, and returns `NameNotFound` (61, previously reserved and never returned) when `owner` holds no name (#458).
+- Regression tests pinning `expire_treasury_proposal` to literal deadlines: a private proposal is not expirable anywhere in `(voting_period, voting_period * 2]` and expires after `voting_period * 2`, while a public proposal still expires after one `voting_period` (#456).
+
+### Fixed
+- The contract library compiles again: concurrent merges had each numbered new error variants 92–97 and a later merge dropped `WhitelistFull`, `TransferAmountMismatch`, `JoinedAfterProposal`, `TooManyAdmins`, `TooManyVotesInBatch` and `ArithmeticOverflow` (and `types::ONE`) while their call sites remained. They are restored as append-only codes 95–100, so no existing code is renumbered; `default_loan` propagates `get_loan_asset`'s `Result` (#441, #442).
 - `register_member` now rejects a returning member who defaulted on a loan (or still has one outstanding) with the new `Error::DefaultedLoanOutstanding` (94), so exiting and rejoining can no longer reset a defaulter's standing (#168).
 - `contracts/dao/src/admin.rs` compiles again: `remove_token` regains its closing brace and token-removal event payload, the token-whitelist events use the shared `events` constants, and the unused, malformed duplicate `try_execute_policy_update` is removed (the public entrypoint is `execute_policy_update`) (#433).
+- `validate_policy` now caps `max_loan_duration` at `admin::MAX_LOAN_DURATION` (365 days), rejecting longer terms with `InvalidLoanPolicy` at `initialize` and on `propose_policy_update`, like the 30-day cap on the other policy durations (#449).
+- `propose_policy_update` accepts `quorum_bps == 0`, the fallback-to-`consensus_threshold` sentinel that `initialize` already accepts; both paths now share `validate_policy` alone (#450).
+- Treasury withdrawals parked in `ApprovedPendingDisbursement` now reserve their amount: `propose_withdrawal_in_asset` and the loan-request treasury-ratio cap subtract them (and approved-but-undisbursed loans) via the new `util::available_treasury_in_asset`, so the same funds can't be committed twice (#451).
+- Decided and documented that `execute_policy_update` is the only way to apply a pending policy update: the removed `try_execute_policy_update` is not coming back (a contract fn by that name would also collide with the SDK-generated `try_` client method). README no longer lists it, and a test pins the `(old_policy, new_policy)` event payload (#447).
 - `expire_treasury_proposal` now waits for a private proposal's full commit + reveal window (`created_at + voting_period * 2`), the same boundary `tally` enforces, so committed votes can no longer be locked out of revealing (#434).
+
+### Added
+- `rust-toolchain.toml` pins Rust 1.100.0 with `rustfmt`, `clippy` and the `wasm32v1-none` target. CI (`ci.yml`, `release.yml`, `integration.yml`) installs from it instead of floating `stable`, `Dockerfile.reproducible` uses the same version, and the MSRV job calls `cargo +1.84` explicitly (#240).
+- `contract/contract-interface.json` and `contract/interface-summary.txt`, generated by `scripts/generate-abi.sh` and linked from the README ABI section as the source of truth. `generate-abi.sh` now reads the workspace `target/` wasm, uses `stellar contract info interface`, and is executable (#442).
+- The generated TypeScript client in `bindings/ts/` (package `ourdao-dao`, depending on `@stellar/stellar-sdk`). `generate-bindings.sh` builds the optimized wasm, uses `stellar contract bindings typescript`, patches the strict-mode `private` argument so `tsc` passes, and no longer silently writes a stub when the CLI is missing; `make abi` / `make bindings` run the generators (#441).
+- CI `generated-artifacts` job: installs a pinned, checksum-verified stellar CLI, runs `generate-abi.sh --check` and `generate-bindings.sh --check`, and runs the new `tests/repo_consistency.rs` checks (#240, #441, #442, #445).
+
+### Documentation
+- `DEPLOYMENTS.md`'s release history now states that no version has been tagged yet despite the functionality on `main` (tag cut tracked in #265), and `DEPLOYMENTS.md` and `CHANGELOG.md` cross-link as "what's deployed" and "what's changed" (#445).
+- `CONTRIBUTING.md` documents installing the pinned toolchain and regenerating the committed ABI and bindings on any interface change (#240, #441).
 
 ## [0.2.0] - 2026-11-21
 

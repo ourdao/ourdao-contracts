@@ -1,0 +1,702 @@
+#[soroban_sdk::contractargs(name = "Args")]
+#[soroban_sdk::contractclient(name = "Client")]
+pub trait Contract {
+    fn pause(env: soroban_sdk::Env, caller: soroban_sdk::Address) -> Result<(), Error>;
+    fn stake(
+        env: soroban_sdk::Env,
+        member: soroban_sdk::Address,
+        amount: i128,
+    ) -> Result<(), Error>;
+    fn name_of(
+        env: soroban_sdk::Env,
+        owner: soroban_sdk::Address,
+    ) -> Result<Option<soroban_sdk::String>, Error>;
+    fn unpause(env: soroban_sdk::Env, caller: soroban_sdk::Address) -> Result<(), Error>;
+    fn unstake(
+        env: soroban_sdk::Env,
+        member: soroban_sdk::Address,
+        amount: i128,
+    ) -> Result<(), Error>;
+    fn exit_dao(
+        env: soroban_sdk::Env,
+        member: soroban_sdk::Address,
+    ) -> Result<(), Error>;
+    fn get_loan(env: soroban_sdk::Env, loan_id: u32) -> Option<Loan>;
+    fn is_admin(
+        env: soroban_sdk::Env,
+        address: soroban_sdk::Address,
+    ) -> Result<bool, Error>;
+    fn add_admin(
+        env: soroban_sdk::Env,
+        caller: soroban_sdk::Address,
+        admin: soroban_sdk::Address,
+    ) -> Result<(), Error>;
+    fn get_stake(env: soroban_sdk::Env, member: soroban_sdk::Address) -> i128;
+    fn get_token(env: soroban_sdk::Env) -> Result<soroban_sdk::Address, Error>;
+    fn has_voted(
+        env: soroban_sdk::Env,
+        kind: ProposalKind,
+        proposal_id: u32,
+        voter: soroban_sdk::Address,
+    ) -> bool;
+    fn is_member(env: soroban_sdk::Env, address: soroban_sdk::Address) -> bool;
+    fn is_paused(env: soroban_sdk::Env) -> bool;
+    fn seed_docs(
+        env: soroban_sdk::Env,
+        caller: soroban_sdk::Address,
+        docs: soroban_sdk::Vec<SeedDocEntry>,
+    ) -> Result<(), Error>;
+    fn get_admins(
+        env: soroban_sdk::Env,
+    ) -> Result<soroban_sdk::Vec<soroban_sdk::Address>, Error>;
+    fn get_member(
+        env: soroban_sdk::Env,
+        address: soroban_sdk::Address,
+    ) -> Option<Member>;
+    fn initialize(
+        env: soroban_sdk::Env,
+        admins: soroban_sdk::Vec<soroban_sdk::Address>,
+        consensus_threshold: u32,
+        membership_fee: i128,
+        token: soroban_sdk::Address,
+        policy: LoanPolicy,
+    ) -> Result<(), Error>;
+    fn list_loans(
+        env: soroban_sdk::Env,
+        start: u32,
+        limit: u32,
+    ) -> soroban_sdk::Vec<Loan>;
+    fn repay_loan(
+        env: soroban_sdk::Env,
+        borrower: soroban_sdk::Address,
+        loan_id: u32,
+    ) -> Result<(), Error>;
+    fn seed_loans(
+        env: soroban_sdk::Env,
+        caller: soroban_sdk::Address,
+        loans: soroban_sdk::Vec<Loan>,
+    ) -> Result<(), Error>;
+    fn seed_names(
+        env: soroban_sdk::Env,
+        caller: soroban_sdk::Address,
+        names: soroban_sdk::Vec<SeedNameEntry>,
+    ) -> Result<(), Error>;
+    fn set_pauser(
+        env: soroban_sdk::Env,
+        caller: soroban_sdk::Address,
+        pauser: soroban_sdk::Address,
+    ) -> Result<(), Error>;
+    fn vote_batch(
+        env: soroban_sdk::Env,
+        voter: soroban_sdk::Address,
+        votes: soroban_sdk::Vec<ProposalVote>,
+    ) -> Result<(), Error>;
+    fn get_version(env: soroban_sdk::Env) -> soroban_sdk::String;
+    fn seed_stakes(
+        env: soroban_sdk::Env,
+        caller: soroban_sdk::Address,
+        stakes: soroban_sdk::Vec<SeedStakeEntry>,
+    ) -> Result<(), Error>;
+    fn bump_dao_ttl(env: soroban_sdk::Env);
+    fn get_delegate(
+        env: soroban_sdk::Env,
+        delegator: soroban_sdk::Address,
+    ) -> Option<soroban_sdk::Address>;
+    fn get_document(
+        env: soroban_sdk::Env,
+        kind: ProposalKind,
+        proposal_id: u32,
+    ) -> Result<Option<soroban_sdk::Bytes>, Error>;
+    fn list_members(
+        env: soroban_sdk::Env,
+        start: u32,
+        limit: u32,
+    ) -> soroban_sdk::Vec<Member>;
+    fn lock_seeding(
+        env: soroban_sdk::Env,
+        caller: soroban_sdk::Address,
+    ) -> Result<(), Error>;
+    fn remove_admin(
+        env: soroban_sdk::Env,
+        caller: soroban_sdk::Address,
+        admin: soroban_sdk::Address,
+    ) -> Result<(), Error>;
+    fn remove_token(
+        env: soroban_sdk::Env,
+        caller: soroban_sdk::Address,
+        token: soroban_sdk::Address,
+    ) -> Result<(), Error>;
+    fn request_loan(
+        env: soroban_sdk::Env,
+        borrower: soroban_sdk::Address,
+        amount: i128,
+        metadata_cid: Option<soroban_sdk::String>,
+    ) -> Result<u32, Error>;
+    fn resolve_name(
+        env: soroban_sdk::Env,
+        name: soroban_sdk::String,
+    ) -> Result<Option<soroban_sdk::Address>, Error>;
+    fn seed_members(
+        env: soroban_sdk::Env,
+        caller: soroban_sdk::Address,
+        members: soroban_sdk::Vec<Member>,
+    ) -> Result<(), Error>;
+    fn claim_rewards(
+        env: soroban_sdk::Env,
+        member: soroban_sdk::Address,
+    ) -> Result<i128, Error>;
+    fn delegate_vote(
+        env: soroban_sdk::Env,
+        delegator: soroban_sdk::Address,
+        delegatee: soroban_sdk::Address,
+    ) -> Result<(), Error>;
+    fn register_name(
+        env: soroban_sdk::Env,
+        owner: soroban_sdk::Address,
+        name: soroban_sdk::String,
+    ) -> Result<(), Error>;
+    fn revoke_pauser(
+        env: soroban_sdk::Env,
+        caller: soroban_sdk::Address,
+    ) -> Result<(), Error>;
+    fn is_initialized(env: soroban_sdk::Env) -> bool;
+    fn attach_document(
+        env: soroban_sdk::Env,
+        caller: soroban_sdk::Address,
+        kind: ProposalKind,
+        proposal_id: u32,
+        content_hash: soroban_sdk::Bytes,
+    ) -> Result<(), Error>;
+    fn get_dao_summary(env: soroban_sdk::Env) -> DaoSummary;
+    fn get_loan_policy(env: soroban_sdk::Env) -> Result<LoanPolicy, Error>;
+    fn register_member(
+        env: soroban_sdk::Env,
+        member: soroban_sdk::Address,
+    ) -> Result<(), Error>;
+    fn set_loan_policy(
+        env: soroban_sdk::Env,
+        caller: soroban_sdk::Address,
+        policy: LoanPolicy,
+    ) -> Result<(), Error>;
+    fn get_loan_proposal(
+        env: soroban_sdk::Env,
+        proposal_id: u32,
+    ) -> Option<LoanProposal>;
+    fn get_pending_yield(
+        env: soroban_sdk::Env,
+        member: soroban_sdk::Address,
+    ) -> Result<i128, Error>;
+    fn get_total_members(env: soroban_sdk::Env) -> u32;
+    fn get_voting_weight(env: soroban_sdk::Env, member: soroban_sdk::Address) -> i128;
+    fn is_seeding_locked(env: soroban_sdk::Env) -> bool;
+    fn verify_commitment(
+        env: soroban_sdk::Env,
+        voter: soroban_sdk::Address,
+        proposal_id: u32,
+        support: bool,
+        salt: soroban_sdk::BytesN<32>,
+    ) -> bool;
+    fn edit_loan_proposal(
+        env: soroban_sdk::Env,
+        borrower: soroban_sdk::Address,
+        proposal_id: u32,
+        new_amount: i128,
+        metadata_cid: Option<soroban_sdk::String>,
+    ) -> Result<(), Error>;
+    fn get_active_members(env: soroban_sdk::Env) -> u32;
+    fn repay_loan_partial(
+        env: soroban_sdk::Env,
+        borrower: soroban_sdk::Address,
+        loan_id: u32,
+        amount: i128,
+    ) -> Result<(), Error>;
+    fn seed_pending_yield(
+        env: soroban_sdk::Env,
+        caller: soroban_sdk::Address,
+        yields: soroban_sdk::Vec<SeedYieldEntry>,
+    ) -> Result<(), Error>;
+    fn get_max_stake_bonus(env: soroban_sdk::Env) -> i128;
+    fn get_member_overview(
+        env: soroban_sdk::Env,
+        member: soroban_sdk::Address,
+    ) -> Result<MemberOverview, Error>;
+    fn mark_loan_defaulted(env: soroban_sdk::Env, loan_id: u32) -> Result<(), Error>;
+    fn repay_loan_in_asset(
+        env: soroban_sdk::Env,
+        borrower: soroban_sdk::Address,
+        loan_id: u32,
+        asset: soroban_sdk::Address,
+    ) -> Result<(), Error>;
+    fn calculate_exit_share(
+        env: soroban_sdk::Env,
+        member: soroban_sdk::Address,
+    ) -> Result<i128, Error>;
+    fn calculate_loan_terms(
+        env: soroban_sdk::Env,
+        amount: i128,
+    ) -> Result<LoanTerms, Error>;
+    fn cancel_loan_proposal(
+        env: soroban_sdk::Env,
+        borrower: soroban_sdk::Address,
+        proposal_id: u32,
+    ) -> Result<(), Error>;
+    fn cancel_policy_update(
+        env: soroban_sdk::Env,
+        caller: soroban_sdk::Address,
+    ) -> Result<(), Error>;
+    fn commit_treasury_vote(
+        env: soroban_sdk::Env,
+        voter: soroban_sdk::Address,
+        proposal_id: u32,
+        commitment: soroban_sdk::BytesN<32>,
+    ) -> Result<(), Error>;
+    fn expire_loan_proposal(
+        env: soroban_sdk::Env,
+        proposal_id: u32,
+    ) -> Result<(), Error>;
+    fn get_treasury_balance(env: soroban_sdk::Env) -> Result<i128, Error>;
+    fn is_eligible_for_loan(
+        env: soroban_sdk::Env,
+        member: soroban_sdk::Address,
+    ) -> Result<(), Error>;
+    fn is_token_whitelisted(env: soroban_sdk::Env, token: soroban_sdk::Address) -> bool;
+    fn reveal_treasury_vote(
+        env: soroban_sdk::Env,
+        voter: soroban_sdk::Address,
+        proposal_id: u32,
+        support: bool,
+        salt: soroban_sdk::BytesN<32>,
+    ) -> Result<(), Error>;
+    fn execute_policy_update(
+        env: soroban_sdk::Env,
+        caller: soroban_sdk::Address,
+    ) -> Result<(), Error>;
+    fn get_member_loan_stats(
+        env: soroban_sdk::Env,
+        member: soroban_sdk::Address,
+    ) -> Result<MemberLoanStats, Error>;
+    fn get_stake_weight_unit(env: soroban_sdk::Env) -> i128;
+    fn get_treasury_balances(
+        env: soroban_sdk::Env,
+    ) -> soroban_sdk::Map<soroban_sdk::Address, i128>;
+    fn get_treasury_proposal(
+        env: soroban_sdk::Env,
+        proposal_id: u32,
+    ) -> Option<TreasuryProposal>;
+    fn propose_policy_update(
+        env: soroban_sdk::Env,
+        caller: soroban_sdk::Address,
+        policy: LoanPolicy,
+    ) -> Result<(), Error>;
+    fn request_loan_in_asset(
+        env: soroban_sdk::Env,
+        borrower: soroban_sdk::Address,
+        amount: i128,
+        asset: soroban_sdk::Address,
+        metadata_cid: Option<soroban_sdk::String>,
+    ) -> Result<u32, Error>;
+    fn vote_on_loan_proposal(
+        env: soroban_sdk::Env,
+        voter: soroban_sdk::Address,
+        proposal_id: u32,
+        support: bool,
+    ) -> Result<(), Error>;
+    fn claim_rewards_in_asset(
+        env: soroban_sdk::Env,
+        member: soroban_sdk::Address,
+        asset: soroban_sdk::Address,
+    ) -> Result<i128, Error>;
+    fn disburse_approved_loan(
+        env: soroban_sdk::Env,
+        proposal_id: u32,
+    ) -> Result<(), Error>;
+    fn execute_token_addition(
+        env: soroban_sdk::Env,
+        caller: soroban_sdk::Address,
+        token: soroban_sdk::Address,
+    ) -> Result<(), Error>;
+    fn get_whitelisted_tokens(
+        env: soroban_sdk::Env,
+    ) -> soroban_sdk::Vec<soroban_sdk::Address>;
+    fn propose_token_addition(
+        env: soroban_sdk::Env,
+        caller: soroban_sdk::Address,
+        token: soroban_sdk::Address,
+    ) -> Result<(), Error>;
+    fn get_consensus_threshold(env: soroban_sdk::Env) -> Result<u32, Error>;
+    fn get_loan_proposal_count(env: soroban_sdk::Env) -> u32;
+    fn get_treasury_accounting(
+        env: soroban_sdk::Env,
+        asset: soroban_sdk::Address,
+    ) -> Result<TreasuryAccounting, Error>;
+    fn list_treasury_proposals(
+        env: soroban_sdk::Env,
+        start: u32,
+        limit: u32,
+    ) -> soroban_sdk::Vec<TreasuryProposal>;
+    fn set_consensus_threshold(
+        env: soroban_sdk::Env,
+        caller: soroban_sdk::Address,
+        threshold: u32,
+    ) -> Result<(), Error>;
+    fn cancel_treasury_proposal(
+        env: soroban_sdk::Env,
+        proposer: soroban_sdk::Address,
+        proposal_id: u32,
+    ) -> Result<(), Error>;
+    fn expire_treasury_proposal(
+        env: soroban_sdk::Env,
+        proposal_id: u32,
+    ) -> Result<(), Error>;
+    fn get_commit_reveal_window(
+        env: soroban_sdk::Env,
+        proposal_id: u32,
+    ) -> Result<(u64, u64), Error>;
+    fn execute_treasury_proposal(
+        env: soroban_sdk::Env,
+        proposal_id: u32,
+    ) -> Result<(), Error>;
+    fn get_pending_policy_update(env: soroban_sdk::Env) -> Option<PendingPolicyUpdate>;
+    fn vote_on_treasury_proposal(
+        env: soroban_sdk::Env,
+        voter: soroban_sdk::Address,
+        proposal_id: u32,
+        support: bool,
+    ) -> Result<(), Error>;
+    fn get_pending_token_addition(
+        env: soroban_sdk::Env,
+        token: soroban_sdk::Address,
+    ) -> Option<u64>;
+    fn get_pending_yield_in_asset(
+        env: soroban_sdk::Env,
+        member: soroban_sdk::Address,
+        asset: soroban_sdk::Address,
+    ) -> Result<i128, Error>;
+    fn get_pending_token_additions(
+        env: soroban_sdk::Env,
+    ) -> soroban_sdk::Vec<(soroban_sdk::Address, u64)>;
+    fn get_treasury_proposal_count(env: soroban_sdk::Env) -> u32;
+    fn propose_treasury_withdrawal(
+        env: soroban_sdk::Env,
+        proposer: soroban_sdk::Address,
+        amount: i128,
+        destination: soroban_sdk::Address,
+        reason: soroban_sdk::String,
+        private: bool,
+    ) -> Result<u32, Error>;
+    fn propose_withdrawal_in_asset(
+        env: soroban_sdk::Env,
+        proposer: soroban_sdk::Address,
+        amount: i128,
+        asset: soroban_sdk::Address,
+        destination: soroban_sdk::Address,
+        reason: soroban_sdk::String,
+        private: bool,
+    ) -> Result<u32, Error>;
+    fn get_treasury_balance_in_asset(
+        env: soroban_sdk::Env,
+        asset: soroban_sdk::Address,
+    ) -> i128;
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct Loan {
+    pub amount_repaid: i128,
+    pub borrower: soroban_sdk::Address,
+    pub default_grace_period: u64,
+    pub default_penalty_bps: u32,
+    pub due_time: u64,
+    pub id: u32,
+    pub interest_rate: u32,
+    pub principal: i128,
+    pub start_time: u64,
+    pub status: LoanStatus,
+    pub total_repayment: i128,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct Member {
+    pub active_loans: u32,
+    pub address: soroban_sdk::Address,
+    pub contribution: i128,
+    pub has_active_loan: bool,
+    pub join_time: u64,
+    pub last_loan_time: u64,
+    pub repaid_loans: u32,
+    pub share_balance: i128,
+    pub status: MemberStatus,
+    pub total_loans: u32,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct LoanTerms {
+    pub duration: u64,
+    pub interest_rate: u32,
+    pub max_loan: i128,
+    pub total_repayment: i128,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct DaoSummary {
+    pub active_members: u32,
+    pub consensus_threshold: u32,
+    pub paused: bool,
+    pub total_members: u32,
+    pub total_staked: i128,
+    pub treasury_balance: i128,
+    pub treasury_balances: soroban_sdk::Vec<AssetBalance>,
+    pub version: soroban_sdk::String,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct LoanPolicy {
+    pub cooldown_period: u64,
+    pub default_grace_period: u64,
+    pub default_penalty_bps: u32,
+    pub editing_period: u64,
+    pub max_interest_rate: u32,
+    pub max_loan_duration: u64,
+    pub max_loan_to_treasury_ratio: u32,
+    pub membership_contribution: i128,
+    pub min_interest_rate: u32,
+    pub min_membership_duration: u64,
+    pub quorum_bps: u32,
+    pub treasury_threshold: u32,
+    pub voting_period: u64,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct AssetBalance {
+    pub asset: soroban_sdk::Address,
+    pub balance: i128,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct LoanProposal {
+    pub active_members: u32,
+    pub against_votes: i128,
+    pub amount: i128,
+    pub borrower: soroban_sdk::Address,
+    pub created_at: u64,
+    pub duration: u64,
+    pub editing_period_end: u64,
+    pub for_votes: i128,
+    pub id: u32,
+    pub interest_rate: u32,
+    pub last_edited_at: Option<u64>,
+    pub metadata_cid: Option<soroban_sdk::String>,
+    pub phase: ProposalPhase,
+    pub status: ProposalStatus,
+    pub total_repayment: i128,
+    pub votes_cast: u32,
+    pub voting_period: u64,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct ProposalVote {
+    pub proposal_id: u32,
+    pub vote: bool,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct SeedDocEntry {
+    pub content_hash: soroban_sdk::Bytes,
+    pub kind: ProposalKind,
+    pub proposal_id: u32,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct SeedNameEntry {
+    pub name: soroban_sdk::String,
+    pub owner: soroban_sdk::Address,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct MemberOverview {
+    pub delegate: Option<soroban_sdk::Address>,
+    pub loan_stats: MemberLoanStats,
+    pub member: Member,
+    pub name: Option<soroban_sdk::String>,
+    pub pending_yield: i128,
+    pub stake: i128,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct SeedStakeEntry {
+    pub address: soroban_sdk::Address,
+    pub amount: i128,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct SeedYieldEntry {
+    pub address: soroban_sdk::Address,
+    pub amount: i128,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct LoanTermsEdited {
+    pub borrower: soroban_sdk::Address,
+    pub edited_at: u64,
+    pub new_amount: i128,
+    pub prev_amount: i128,
+    pub prev_total_repayment: i128,
+    pub proposal_id: u32,
+    pub total_repayment: i128,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct MemberLoanStats {
+    pub active_loans: u32,
+    pub repaid_loans: u32,
+    pub total_loans: u32,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct TreasuryProposal {
+    pub active_members: u32,
+    pub against_votes: i128,
+    pub amount: i128,
+    pub created_at: u64,
+    pub destination: soroban_sdk::Address,
+    pub for_votes: i128,
+    pub id: u32,
+    pub private: bool,
+    pub proposer: soroban_sdk::Address,
+    pub reason: soroban_sdk::String,
+    pub status: ProposalStatus,
+    pub treasury_threshold: u32,
+    pub votes_cast: u32,
+    pub voting_period: u64,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct TreasuryAccounting {
+    pub outstanding_principal: i128,
+    pub staked: i128,
+    pub token_balance: i128,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct PendingPolicyUpdate {
+    pub execution_time: u64,
+    pub policy: LoanPolicy,
+    pub proposed_at: u64,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct StakingRewardClaimed {
+    pub amount: i128,
+    pub member: soroban_sdk::Address,
+    pub timestamp: u64,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub enum LoanStatus {
+    Active,
+    Repaid,
+    Defaulted,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub enum MemberStatus {
+    ActiveMember,
+    Inactive,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub enum ProposalPhase {
+    Editing,
+    Voting,
+    Executed,
+    Expired,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub enum ProposalStatus {
+    Pending,
+    ApprovedPendingDisbursement,
+    Approved,
+    Rejected,
+    Executed,
+    Expired,
+    Cancelled,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub enum ProposalKind {
+    Loan,
+    Treasury,
+}
+#[soroban_sdk::contracterror]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub enum Error {
+    AlreadyInitialized = 1,
+    NotInitialized = 2,
+    InvalidThreshold = 3,
+    InvalidAmount = 4,
+    InvalidLoanPolicy = 5,
+    Paused = 6,
+    NotPaused = 7,
+    NotAuthorized = 10,
+    NotAdmin = 11,
+    NotMember = 12,
+    AlreadyAdmin = 13,
+    AlreadyMember = 14,
+    CannotRemoveLastAdmin = 15,
+    MemberNotActive = 20,
+    HasActiveLoan = 21,
+    ProposalNotFound = 30,
+    NotBorrower = 31,
+    NotInEditingPhase = 32,
+    NotInVotingPhase = 33,
+    VotingEnded = 34,
+    AlreadyVoted = 35,
+    NotEligibleForLoan = 36,
+    CooldownActive = 37,
+    LoanNotFound = 38,
+    LoanNotActive = 39,
+    ExceedsTreasuryRatio = 40,
+    InsufficientTreasury = 41,
+    LoanNotOverdue = 42,
+    TreasuryProposalNotFound = 50,
+    NameTaken = 60,
+    NameNotFound = 61,
+    NoStake = 62,
+    InsufficientStake = 63,
+    NoCommitment = 64,
+    CommitmentMismatch = 65,
+    AlreadyRevealed = 66,
+    NothingToClaim = 67,
+    ProposalNotExpired = 70,
+    InvalidName = 71,
+    NotYetRevealed = 72,
+    NotProposalOwner = 73,
+    DocumentTooLarge = 74,
+    InvalidToken = 75,
+    TimelockNotExpired = 76,
+    NoPendingPolicy = 77,
+    InvalidMetadataCid = 78,
+    InvalidDelegation = 79,
+    InvalidProposal = 80,
+    AlreadyPauser = 81,
+    NotPauser = 82,
+    TokenNotWhitelisted = 83,
+    TokenAlreadyWhitelisted = 84,
+    NoPendingTokenAddition = 85,
+    AssetMismatch = 86,
+    CannotRemoveBaseToken = 87,
+    SeedingLocked = 88,
+    SeedingAlreadyLocked = 89,
+    TooManyOpenProposals = 90,
+    BorrowerCannotVote = 91,
+    TokenHasBalance = 92,
+    TokenHasActiveLoans = 93,
+    DefaultedLoanOutstanding = 94,
+    WhitelistFull = 95,
+    TransferAmountMismatch = 96,
+    JoinedAfterProposal = 97,
+    TooManyAdmins = 98,
+    TooManyVotesInBatch = 99,
+    ArithmeticOverflow = 100,
+}
+

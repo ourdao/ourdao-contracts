@@ -44,15 +44,13 @@ fn pause_blocks_all_mutating_entrypoints_except_repay() {
     let loan_id = s.client.request_loan(&borrower, &500, &None);
     advance(&s.env, EDITING + 1);
 
-    let treasury_id = s
-        .client
-        .propose_treasury_withdrawal(
-            &borrower,
-            &100,
-            &newcomer,
-            &String::from_str(&s.env, "test"),
-            &false,
-        );
+    let treasury_id = s.client.propose_treasury_withdrawal(
+        &borrower,
+        &100,
+        &newcomer,
+        &String::from_str(&s.env, "test"),
+        &false,
+    );
 
     s.client.pause(&s.admin);
 
@@ -87,16 +85,14 @@ fn pause_blocks_all_mutating_entrypoints_except_repay() {
         EntryPoint {
             name: "set_pauser",
             blocked: matches!(
-                s.client.try_set_pauser(&s.admin, &Address::generate(&s.env)),
+                s.client
+                    .try_set_pauser(&s.admin, &Address::generate(&s.env)),
                 Err(Ok(Error::Paused))
             ),
         },
         EntryPoint {
             name: "revoke_pauser",
-            blocked: matches!(
-                s.client.try_revoke_pauser(&s.admin),
-                Err(Ok(Error::Paused))
-            ),
+            blocked: matches!(s.client.try_revoke_pauser(&s.admin), Err(Ok(Error::Paused))),
         },
         EntryPoint {
             name: "set_consensus_threshold",
@@ -135,17 +131,11 @@ fn pause_blocks_all_mutating_entrypoints_except_repay() {
         },
         EntryPoint {
             name: "pause",
-            blocked: matches!(
-                s.client.try_pause(&s.admin),
-                Err(Ok(Error::Paused))
-            ),
+            blocked: matches!(s.client.try_pause(&s.admin), Err(Ok(Error::Paused))),
         },
         EntryPoint {
             name: "unpause",
-            blocked: matches!(
-                s.client.try_unpause(&s.admin),
-                Err(Ok(_))
-            ),
+            blocked: matches!(s.client.try_unpause(&s.admin), Err(Ok(_))),
         },
         EntryPoint {
             name: "register_member",
@@ -156,10 +146,7 @@ fn pause_blocks_all_mutating_entrypoints_except_repay() {
         },
         EntryPoint {
             name: "exit_dao",
-            blocked: matches!(
-                s.client.try_exit_dao(&borrower),
-                Err(Ok(Error::Paused))
-            ),
+            blocked: matches!(s.client.try_exit_dao(&borrower), Err(Ok(Error::Paused))),
         },
         EntryPoint {
             name: "claim_rewards",
@@ -185,12 +172,8 @@ fn pause_blocks_all_mutating_entrypoints_except_repay() {
         EntryPoint {
             name: "request_loan_in_asset",
             blocked: matches!(
-                s.client.try_request_loan_in_asset(
-                    &borrower,
-                    &100,
-                    &s.client.get_token(),
-                    &None,
-                ),
+                s.client
+                    .try_request_loan_in_asset(&borrower, &100, &s.client.get_token(), &None,),
                 Err(Ok(Error::Paused))
             ),
         },
@@ -294,14 +277,16 @@ fn pause_blocks_all_mutating_entrypoints_except_repay() {
         EntryPoint {
             name: "vote_on_treasury_proposal",
             blocked: matches!(
-                s.client.try_vote_on_treasury_proposal(&voter, &treasury_id, &true),
+                s.client
+                    .try_vote_on_treasury_proposal(&voter, &treasury_id, &true),
                 Err(Ok(Error::Paused))
             ),
         },
         EntryPoint {
             name: "cancel_treasury_proposal",
             blocked: matches!(
-                s.client.try_cancel_treasury_proposal(&borrower, &treasury_id),
+                s.client
+                    .try_cancel_treasury_proposal(&borrower, &treasury_id),
                 Err(Ok(Error::Paused))
             ),
         },
@@ -321,27 +306,23 @@ fn pause_blocks_all_mutating_entrypoints_except_repay() {
         },
         EntryPoint {
             name: "stake",
-            blocked: matches!(
-                s.client.try_stake(&staker, &100),
-                Err(Ok(Error::Paused))
-            ),
+            blocked: matches!(s.client.try_stake(&staker, &100), Err(Ok(Error::Paused))),
         },
         EntryPoint {
             name: "unstake",
-            blocked: matches!(
-                s.client.try_unstake(&staker, &100),
-                Err(Ok(Error::Paused))
-            ),
+            blocked: matches!(s.client.try_unstake(&staker, &100), Err(Ok(Error::Paused))),
         },
         EntryPoint {
             name: "register_name",
             blocked: matches!(
-                s.client.try_register_name(
-                    &borrower,
-                    &String::from_str(&s.env, "member"),
-                ),
+                s.client
+                    .try_register_name(&borrower, &String::from_str(&s.env, "member"),),
                 Err(Ok(Error::Paused))
             ),
+        },
+        EntryPoint {
+            name: "release_name",
+            blocked: matches!(s.client.try_release_name(&borrower), Err(Ok(Error::Paused))),
         },
         EntryPoint {
             name: "commit_treasury_vote",
@@ -382,7 +363,11 @@ fn pause_blocks_all_mutating_entrypoints_except_repay() {
 
     for case in cases {
         if case.name.starts_with("repay_") {
-            assert!(!case.blocked, "{} must remain callable while paused", case.name);
+            assert!(
+                !case.blocked,
+                "{} must remain callable while paused",
+                case.name
+            );
         } else {
             assert!(case.blocked, "{} must be pause-gated", case.name);
         }
@@ -594,6 +579,13 @@ fn pause_blocks_all_mutating_entrypoints() {
         "register_name should be pause-gated"
     );
 
+    let res = s.client.try_release_name(&borrower);
+    assert_eq!(
+        res,
+        Err(Ok(Error::Paused)),
+        "release_name should be pause-gated"
+    );
+
     // ==================== Privacy (commit-reveal voting) ====================
     let commitment = BytesN::from_array(&s.env, &[0u8; 32]);
     let res = s
@@ -643,7 +635,10 @@ fn only_admin_can_unpause_even_when_a_dedicated_pauser_exists() {
 
     // The emergency pauser may stop the DAO but must not be able to resume it.
     assert_eq!(s.client.try_unpause(&pauser), Err(Ok(Error::NotAdmin)));
-    assert!(s.client.is_paused(), "unauthorised unpause must not change state");
+    assert!(
+        s.client.is_paused(),
+        "unauthorised unpause must not change state"
+    );
 
     // An unrelated address must likewise be rejected without clearing the pause.
     assert_eq!(s.client.try_unpause(&outsider), Err(Ok(Error::NotAdmin)));
@@ -746,14 +741,20 @@ fn initialize_failure_leaves_no_state_and_allows_subsequent_success() {
 
     // Subsequent initialize with a valid token succeeds
     let sac = env.register_stellar_asset_contract_v2(Address::generate(&env));
-    assert_eq!(client.try_initialize(&admins, &5_100u32, &FEE, &sac.address(), &policy()), Ok(Ok(())));
+    assert_eq!(
+        client.try_initialize(&admins, &5_100u32, &FEE, &sac.address(), &policy()),
+        Ok(Ok(()))
+    );
     assert!(client.is_initialized());
 }
 
 // Issue #497: ProposalVote Copy and Eq/PartialEq derives
 #[test]
 fn proposal_vote_derives_work_as_expected() {
-    let v1 = crate::types::ProposalVote { proposal_id: 1, vote: true };
+    let v1 = crate::types::ProposalVote {
+        proposal_id: 1,
+        vote: true,
+    };
     let v2 = v1; // Copy derive test
     assert_eq!(v1, v2);
 }
@@ -768,14 +769,41 @@ fn validate_policy_rejects_quorum_bps_above_basis_points() {
     assert_eq!(res, Err(Ok(Error::InvalidLoanPolicy)));
 }
 
-// Issue #320: Validate quorum_bps within 1..=10000 on policy updates
+// Issue #450: `quorum_bps == 0` is the fallback-to-consensus sentinel. It is
+// accepted at initialize, so it must be accepted on a policy update too.
 #[test]
-fn validate_policy_rejects_zero_quorum_bps() {
+fn initialize_and_propose_policy_update_agree_on_zero_quorum_bps() {
     let mut p = policy();
     p.quorum_bps = 0;
+
+    let env = Env::default();
+    env.mock_all_auths();
+    let token = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    let client = OurDaoClient::new(&env, &env.register(OurDao, ()));
+    let admin = Address::generate(&env);
+    let mut admins = Vec::new(&env);
+    admins.push_back(admin.clone());
+    assert_eq!(
+        client.try_initialize(&admins, &5_100, &FEE, &token, &p),
+        Ok(Ok(()))
+    );
+
+    // Move a DAO to an explicit quorum, then back to the sentinel: the update
+    // path must accept and apply `quorum_bps == 0` just as initialize did.
     let s = setup(1);
-    let res = s.client.try_propose_policy_update(&s.admin, &p);
-    assert_eq!(res, Err(Ok(Error::InvalidLoanPolicy)));
+    let mut explicit = p.clone();
+    explicit.quorum_bps = 5_000;
+    s.client.propose_policy_update(&s.admin, &explicit);
+    advance(&s.env, TIMELOCK_DURATION);
+    s.client.execute_policy_update(&s.admin);
+    assert_eq!(s.client.get_loan_policy().quorum_bps, 5_000);
+
+    assert_eq!(s.client.try_propose_policy_update(&s.admin, &p), Ok(Ok(())));
+    advance(&s.env, TIMELOCK_DURATION);
+    s.client.execute_policy_update(&s.admin);
+    assert_eq!(s.client.get_loan_policy().quorum_bps, 0);
 }
 
 /// Every bound enforced by `admin::validate_policy` is exercised here. This
@@ -786,6 +814,7 @@ fn propose_policy_update_rejects_every_invalid_bound() {
     let cases: [fn(&mut crate::types::LoanPolicy); 19] = [
         |p| p.membership_contribution = 0,
         |p| p.max_loan_duration = 0,
+        |p| p.max_loan_duration = crate::admin::MAX_LOAN_DURATION + 1,
         |p| p.min_interest_rate = 10_001,
         |p| p.max_interest_rate = 10_001,
         |p| {
@@ -803,7 +832,6 @@ fn propose_policy_update_rejects_every_invalid_bound() {
         |p| p.default_grace_period = 30 * 24 * 60 * 60 + 1,
         |p| p.treasury_threshold = 0,
         |p| p.treasury_threshold = 10_001,
-        |p| p.quorum_bps = 0,
         |p| p.quorum_bps = 10_001,
     ];
     for mutate in cases {
@@ -946,6 +974,75 @@ fn get_dao_summary_matches_individual_views() {
 
     s.client.pause(&s.admin);
     assert!(s.client.get_dao_summary().paused);
+}
+
+// #457: after funds move in several assets, every `treasury_balances` entry
+// must still equal `get_treasury_balance_in_asset` for that asset, in
+// whitelist order with the base token first.
+#[test]
+fn get_dao_summary_treasury_balances_match_per_asset_view() {
+    let s = setup(3);
+    let staker = s.members.get(0).unwrap();
+    let borrower = s.members.get(1).unwrap();
+    let voter = s.members.get(2).unwrap();
+    let destination = Address::generate(&s.env);
+
+    // Base: stake, which the per-asset view excludes.
+    s.client.stake(&staker, &500);
+    // Second asset: lend some of it out.
+    let second = whitelist_second_asset(&s, 5_000);
+    let loan_id = s
+        .client
+        .request_loan_in_asset(&borrower, &2_000, &second.address, &None);
+    advance(&s.env, EDITING + 1);
+    // The staker's boosted weight carries the loan, so they vote last.
+    s.client.vote_on_loan_proposal(&voter, &loan_id, &true);
+    s.client.vote_on_loan_proposal(&staker, &loan_id, &true);
+    assert_eq!(second.balance(&borrower), 2_000);
+    // Third asset: pay some of it out through a treasury proposal.
+    let third = whitelist_second_asset(&s, 4_000);
+    let reason = String::from_str(&s.env, "grant");
+    let pid = s.client.propose_withdrawal_in_asset(
+        &staker,
+        &1_500,
+        &third.address,
+        &destination,
+        &reason,
+        &false,
+    );
+    s.client.vote_on_treasury_proposal(&borrower, &pid, &true);
+    s.client.vote_on_treasury_proposal(&voter, &pid, &true);
+    assert_eq!(third.balance(&destination), 1_500);
+
+    let whitelist = s.client.get_whitelisted_tokens();
+    assert_eq!(
+        whitelist,
+        Vec::from_array(
+            &s.env,
+            [
+                s.client.get_token(),
+                second.address.clone(),
+                third.address.clone()
+            ]
+        )
+    );
+
+    let summary = s.client.get_dao_summary();
+    assert_eq!(summary.treasury_balances.len(), whitelist.len());
+    for (i, asset) in whitelist.iter().enumerate() {
+        let entry = summary.treasury_balances.get(i as u32).unwrap();
+        assert_eq!(entry.asset, asset);
+        assert_eq!(
+            entry.balance,
+            s.client.get_treasury_balance_in_asset(&asset)
+        );
+    }
+    assert_eq!(
+        summary.treasury_balances.get(0).unwrap().asset,
+        s.client.get_token()
+    );
+    assert_eq!(summary.treasury_balances.get(1).unwrap().balance, 3_000);
+    assert_eq!(summary.treasury_balances.get(2).unwrap().balance, 2_500);
 }
 
 #[test]
@@ -1151,7 +1248,10 @@ fn get_version_and_dao_summary_version_always_agree() {
     let v1 = s.client.get_version();
     let summary = s.client.get_dao_summary();
     assert_eq!(v1, summary.version);
-    assert_eq!(v1, soroban_sdk::String::from_str(&s.env, env!("CARGO_PKG_VERSION")));
+    assert_eq!(
+        v1,
+        soroban_sdk::String::from_str(&s.env, env!("CARGO_PKG_VERSION"))
+    );
 }
 
 // Issue #526: Parametrized pause guards on entrypoints added since PAUSE_FUNCTIONALITY.md
@@ -1173,7 +1273,13 @@ fn test_pause_guards_on_newer_entrypoints() {
     );
 
     // vote_batch blocked
-    let votes = soroban_sdk::vec![&s.env, crate::types::ProposalVote { proposal_id: 1, vote: true }];
+    let votes = soroban_sdk::vec![
+        &s.env,
+        crate::types::ProposalVote {
+            proposal_id: 1,
+            vote: true
+        }
+    ];
     assert_eq!(
         s.client.try_vote_batch(&member, &votes),
         Err(Ok(Error::Paused))
@@ -1196,14 +1302,16 @@ fn test_pause_guards_on_newer_entrypoints() {
 
     // Multi-token loan request blocked
     assert_eq!(
-        s.client.try_request_loan_in_asset(&member, &100, &token, &None),
+        s.client
+            .try_request_loan_in_asset(&member, &100, &token, &None),
         Err(Ok(Error::Paused))
     );
 
     // Multi-token withdrawal proposal blocked
     let reason = soroban_sdk::String::from_str(&s.env, "grant");
     assert_eq!(
-        s.client.try_propose_withdrawal_in_asset(&member, &100, &token, &other, &reason, &false),
+        s.client
+            .try_propose_withdrawal_in_asset(&member, &100, &token, &other, &reason, &false),
         Err(Ok(Error::Paused))
     );
 }
@@ -1212,7 +1320,9 @@ fn test_pause_guards_on_newer_entrypoints() {
 #[test]
 fn removed_token_balance_reporting() {
     let s = setup(1);
-    let other_sac = s.env.register_stellar_asset_contract_v2(Address::generate(&s.env));
+    let other_sac = s
+        .env
+        .register_stellar_asset_contract_v2(Address::generate(&s.env));
     let other_token = other_sac.address();
 
     // Whitelist new token
@@ -1228,7 +1338,6 @@ fn removed_token_balance_reporting() {
     // get_treasury_balance_in_asset reports the token balance accurately
     assert_eq!(s.client.get_treasury_balance_in_asset(&other_token), 0);
 }
-
 
 // Issue #282: the whitelist is bounded so views and exit-basket iteration stay affordable.
 #[test]
@@ -1309,4 +1418,81 @@ fn token_add_and_remove_events_include_proposal_id_and_caller() {
     assert_eq!(remove_data[0], ScVal::U32(0));
     assert!(matches!(&remove_data[1], ScVal::Address(_)));
     assert!(matches!(&remove_data[2], ScVal::Address(_)));
+}
+
+// Issue #449: `max_loan_duration` is capped like every other policy duration,
+// both at initialize and on a policy update.
+#[test]
+fn max_loan_duration_above_cap_is_rejected_at_initialize_and_update() {
+    use crate::admin::MAX_LOAN_DURATION;
+
+    let mut too_long = policy();
+    too_long.max_loan_duration = MAX_LOAN_DURATION + 1;
+
+    let env = Env::default();
+    env.mock_all_auths();
+    let token = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    let client = OurDaoClient::new(&env, &env.register(OurDao, ()));
+    let mut admins = Vec::new(&env);
+    admins.push_back(Address::generate(&env));
+    assert_eq!(
+        client.try_initialize(&admins, &5_100, &FEE, &token, &too_long),
+        Err(Ok(Error::InvalidLoanPolicy))
+    );
+
+    let s = setup(1);
+    assert_eq!(
+        s.client.try_propose_policy_update(&s.admin, &too_long),
+        Err(Ok(Error::InvalidLoanPolicy))
+    );
+
+    // The cap itself is a valid term.
+    let mut at_cap = policy();
+    at_cap.max_loan_duration = MAX_LOAN_DURATION;
+    assert_eq!(
+        s.client.try_propose_policy_update(&s.admin, &at_cap),
+        Ok(Ok(()))
+    );
+    assert_eq!(
+        client.try_initialize(&admins, &5_100, &FEE, &token, &at_cap),
+        Ok(Ok(()))
+    );
+}
+
+// Issue #447: `execute_policy_update` is the only way to apply a pending
+// policy, and its `policy` event carries `(old_policy, new_policy)` rather
+// than the removed duplicate's `(pending, pending)` payload.
+#[test]
+fn execute_policy_update_event_carries_old_and_new_policy() {
+    use soroban_sdk::{TryFromVal, Val};
+
+    let s = setup(1);
+    let old = s.client.get_loan_policy();
+    let mut new = old.clone();
+    new.min_interest_rate = 700;
+    s.client.propose_policy_update(&s.admin, &new);
+    advance(&s.env, TIMELOCK_DURATION);
+    s.client.execute_policy_update(&s.admin);
+
+    let all = s.env.events().all();
+    let event = all
+        .events()
+        .iter()
+        .rev()
+        .find(|e| {
+            let ContractEventBody::V0(body) = &e.body;
+            matches!(body.topics.first(), Some(ScVal::Symbol(sym)) if sym.0.to_utf8_string_lossy() == "policy")
+        })
+        .expect("policy event not found")
+        .clone();
+    let ContractEventBody::V0(body) = &event.body;
+    let data = Val::try_from_val(&s.env, &body.data).unwrap();
+    let (emitted_old, emitted_new) =
+        <(crate::types::LoanPolicy, crate::types::LoanPolicy)>::try_from_val(&s.env, &data)
+            .unwrap();
+    assert_eq!(emitted_old, old);
+    assert_eq!(emitted_new, new);
+    assert_ne!(emitted_old, emitted_new);
 }

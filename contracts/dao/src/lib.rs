@@ -406,6 +406,13 @@ impl OurDao {
         registry::register_name(&env, owner, name)
     }
 
+    /// Releases `owner`'s registered name so they go nameless without
+    /// claiming a replacement or exiting (#458). `owner` must authorize;
+    /// returns `NameNotFound` if they hold no name and emits `name_rel`.
+    pub fn release_name(env: Env, owner: Address) -> Result<(), Error> {
+        registry::release_name(&env, owner)
+    }
+
     /// Resolves a registered name to its owner address. Read-only; returns
     /// `None` when unregistered and `NotInitialized` if the DAO is uninitialized.
     pub fn resolve_name(env: Env, name: String) -> Result<Option<Address>, Error> {
@@ -615,10 +622,7 @@ impl OurDao {
     pub fn get_treasury_balances(env: Env) -> Map<Address, i128> {
         let mut balances = Map::new(&env);
         for asset in storage::get_whitelisted_tokens(&env).iter() {
-            balances.set(
-                asset.clone(),
-                util::treasury_balance_in_asset(&env, &asset),
-            );
+            balances.set(asset.clone(), util::treasury_balance_in_asset(&env, &asset));
         }
         balances
     }

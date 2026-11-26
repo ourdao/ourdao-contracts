@@ -132,14 +132,14 @@ does **not** change the live policy. It stores a pending update whose
 **Validation** (checked at proposal time, and again by `initialize`):
 
 - `membership_contribution` > 0
-- `max_loan_duration` > 0
+- `max_loan_duration` in `1..=365 days`
 - `min_interest_rate` ≤ `max_interest_rate` ≤ 10_000
 - `max_loan_to_treasury_ratio` in `1..=10_000`
 - `default_penalty_bps` ≤ 10_000
 - `editing_period` and `voting_period` in `1..=30 days`
 - `min_membership_duration`, `cooldown_period`, `default_grace_period` ≤ 30 days
 - `treasury_threshold` in `1..=10_000`
-- `quorum_bps` ≤ 10_000
+- `quorum_bps` ≤ 10_000 (`0` means "use `consensus_threshold`")
 
 **Event:** `pol_prop` with `(caller, execution_time)`.
 

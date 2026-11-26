@@ -1,6 +1,6 @@
 # OurDAO Contract Deployments
 
-This document tracks the OurDAO DAO contract deployments across networks. Each deployment is linked to a specific GitHub release.
+This document tracks **what is deployed where**: the OurDAO DAO contract deployments across networks, each linked to a specific GitHub release. For **what has changed** in the code, see [CHANGELOG.md](CHANGELOG.md).
 
 ## Network Deployments
 
@@ -77,9 +77,9 @@ script compares the SHA-256 hashes of the two resulting WASM files. It exits
 non-zero if the bytes differ. CI runs this verification on every pull request.
 
 The reproducible image is built from `Dockerfile.reproducible`, pinned to
-Rust 1.98.1 on Debian Trixie and the official Stellar CLI 28.0.0 binary. The
+Rust 1.100.0 on Debian Trixie and the official Stellar CLI 28.0.0 binary. The
 local image tag defaults to
-`ourdao-reproducible:rust-1.98.1-stellar-28.0.0`; override only the tag with
+`ourdao-reproducible:rust-1.100.0-stellar-28.0.0`; override only the tag with
 `REPRO_IMAGE` if required:
 
 ```bash
@@ -111,7 +111,9 @@ To deploy a new release:
 
 ## Release History
 
-- **v1.0.0** (not yet released) — Initial release candidate
+**No version has been tagged yet.** There are no `v*` git tags or GitHub releases, so every network table above still reads `TBD`. That isn't because `main` is minimal: [CHANGELOG.md](CHANGELOG.md) already records a large body of merged functionality (multi-token treasury, vote delegation, batch voting, treasury accounting views and more), under a `[0.2.0]` heading that matches the workspace version in `Cargo.toml` plus a growing `[Unreleased]` section. None of it has been cut as a release or deployed.
+
+Cutting the first tag is tracked in [#265](https://github.com/ourdao/ourdao-contracts/issues/265) ("Cut v0.2.0"). When a tag is pushed, `release.yml` publishes the wasm and its SHA-256. Add the tag to this list with a link to its CHANGELOG entry, and record each deployment of it in the network tables above.
 
 ## Notes
 
