@@ -145,3 +145,17 @@ fn integration_workflow_only_runs_automatically_when_its_scripts_exist() {
         );
     }
 }
+
+// ==================== issue #440: stale pauser-error note ====================
+#[test]
+fn admin_guide_lists_the_pauser_errors_that_error_rs_defines() {
+    let guide = read("docs/ADMIN_GUIDE.md");
+    let errors = read("contracts/dao/src/error.rs");
+    assert!(!guide.contains("not yet defined in `error.rs`"));
+    assert!(!guide.contains("does not compile"));
+    assert!(!guide.contains("undefined-variant"));
+    for (code, name) in [(81, "AlreadyPauser"), (82, "NotPauser")] {
+        assert!(errors.contains(&std::format!("    {name} = {code},")));
+        assert!(guide.contains(&std::format!("| {code} | `{name}` |")));
+    }
+}

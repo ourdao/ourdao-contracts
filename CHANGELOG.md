@@ -48,6 +48,7 @@ This file records **what has changed**. For **what is deployed** (tagged release
 - CI `generated-artifacts` job: installs a pinned, checksum-verified stellar CLI, runs `generate-abi.sh --check` and `generate-bindings.sh --check`, and runs the new `tests/repo_consistency.rs` checks (#240, #441, #442, #445).
 
 ### Documentation
+- `ADMIN_GUIDE.md` no longer claims `AlreadyPauser` and `NotPauser` are missing from `error.rs`; both exist as codes 81 and 82 and are now listed in its error-code table (#440).
 - `DEPLOYMENTS.md`'s release history now states that no version has been tagged yet despite the functionality on `main` (tag cut tracked in #265), and `DEPLOYMENTS.md` and `CHANGELOG.md` cross-link as "what's deployed" and "what's changed" (#445).
 - `CONTRIBUTING.md` documents installing the pinned toolchain and regenerating the committed ABI and bindings on any interface change (#240, #441).
 

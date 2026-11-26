@@ -84,9 +84,7 @@ previous one. The pauser can call `pause` but nothing else admin-only.
 **Event:** `pset` with `pauser`.
 
 **Errors:** `NotAdmin`. Also returns `AlreadyPauser` when the address is already
-the pauser. **Known issue:** `AlreadyPauser` and `NotPauser` are used in
-`admin.rs` but not yet defined in `error.rs`; see the note under
-[Error codes referenced here](#error-codes-referenced-here).
+the pauser.
 
 Use this to give an on-call responder the ability to stop the contract without
 granting them governance power.
@@ -99,8 +97,7 @@ granting them governance power.
 
 **Event:** `prev` with the caller's address.
 
-**Errors:** `NotAdmin`. Also returns `NotPauser` when no pauser is set (same
-undefined-variant issue as above).
+**Errors:** `NotAdmin`. Also returns `NotPauser` when no pauser is set.
 
 ---
 
@@ -259,11 +256,8 @@ The indexer depends on them.
 | 75 | `InvalidToken` | `initialize` |
 | 76 | `TimelockNotExpired` | `execute_policy_update` |
 | 77 | `NoPendingPolicy` | `execute_policy_update`, `cancel_policy_update` |
+| 81 | `AlreadyPauser` | `set_pauser` |
+| 82 | `NotPauser` | `revoke_pauser` |
 
 Codes are from `error.rs`, which is the source of truth. Codes are part of the
 public ABI and must never be renumbered.
-
-**Known issue (not fixed in this guide):** `set_pauser` and `revoke_pauser`
-return `AlreadyPauser` and `NotPauser`, but neither variant exists in
-`error.rs` yet, so the crate does not compile until they are added as new,
-appended codes.
