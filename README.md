@@ -157,6 +157,8 @@ The generated source of truth for the full interface (every argument, return typ
 | `repay_loan_partial` |
 | `mark_loan_defaulted` |
 | `expire_loan_proposal` |
+| `request_loan_extension` |
+| `vote_on_loan_extension` |
 | `propose_treasury_withdrawal` |
 | `propose_withdrawal_in_asset` |
 | `vote_on_treasury_proposal` |
@@ -180,6 +182,7 @@ The generated source of truth for the full interface (every argument, return typ
 | `get_member_loan_stats` |
 | `get_member_overview` |
 | `get_loan` |
+| `get_loan_extension` |
 | `get_loan_proposal` |
 | `get_treasury_proposal` |
 | `get_loan_proposal_count` |
@@ -268,6 +271,10 @@ Each published topic and its event payload are listed below. `ourdao-backend` in
 | `interest` | `(interest, active_members, asset)` | Interest distribution during loan repayment |
 | `loan_dflt` | `(loan_id, borrower, penalty)` | `mark_loan_defaulted` |
 | `loan_exp` | `(proposal_id, borrower)` | `expire_loan_proposal` |
+| `ext_req` | `(loan_id, borrower, extra_time, fee)` | `request_loan_extension` |
+| `ext_vote` | `(loan_id, voter, support)` | `vote_on_loan_extension` |
+| `ext_appr` | `(loan_id, new_due_time, new_total_repayment)` | `vote_on_loan_extension` when the request is approved |
+| `ext_rej` | `(loan_id, for_votes, against_votes)` | `vote_on_loan_extension` when approval becomes unreachable |
 | `prop_canc` | `(proposal_id, timestamp)` | `cancel_loan_proposal` / `cancel_treasury_proposal` (proposal-cancelled event) |
 | `tre_asset` | `(id, asset)` | `propose_withdrawal_in_asset` when the asset is not the base token |
 | `tre_prop` | `(id, amount, destination, private)` | `propose_treasury_withdrawal` / `propose_withdrawal_in_asset` |
@@ -359,6 +366,10 @@ Numeric codes are stable and part of the ABI — new variants get appended rathe
 | 99 | `TooManyVotesInBatch` |
 | 100 | `ArithmeticOverflow` |
 | 101 | `SeedLoanMemberMismatch` |
+| 102 | `ExtensionAlreadyRequested` |
+| 103 | `ExtensionWindowClosed` |
+| 104 | `InvalidExtension` |
+| 105 | `ExtensionNotFound` |
 
 ## Build & test
 

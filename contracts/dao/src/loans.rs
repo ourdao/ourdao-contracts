@@ -3,8 +3,8 @@ use soroban_sdk::{Address, Env, String, Vec};
 use crate::error::Error;
 use crate::storage;
 use crate::types::{
-    Loan, LoanPolicy, LoanProposal, LoanStatus, LoanTerms, MemberStatus, ProposalPhase,
-    ProposalStatus, BASIS_POINTS, ONE,
+    Loan, LoanExtension, LoanPolicy, LoanProposal, LoanStatus, LoanTerms, MemberStatus,
+    ProposalPhase, ProposalStatus, BASIS_POINTS, ONE,
 };
 use crate::util;
 
@@ -382,11 +382,7 @@ fn vote_on_loan_proposal_internal(
 
     // Read the policy and the active-member count once per call (#355).
     let policy = storage::get_policy(env)?;
-    let threshold = if policy.quorum_bps > 0 {
-        policy.quorum_bps
-    } else {
-        storage::get_threshold(env)?
-    };
+    let threshold = approval_threshold(env, &policy)?;
     // Quorum is fixed against the electorate snapshotted at creation (#73).
     let required = util::required_votes(proposal.active_members, threshold);
     if proposal.for_votes >= required && proposal.status == ProposalStatus::Pending {
@@ -406,17 +402,7 @@ fn vote_on_loan_proposal_internal(
             .active_members
             .saturating_sub(proposal.votes_cast)
             .saturating_sub(1);
-        let vote_cap = ONE
-            .checked_add(util::MAX_STAKE_BONUS)
-            .ok_or(Error::ArithmeticOverflow)?;
-        let max_remaining = (remaining as i128)
-            .checked_mul(vote_cap)
-            .ok_or(Error::ArithmeticOverflow)?;
-        let max_possible = proposal
-            .for_votes
-            .checked_add(max_remaining)
-            .ok_or(Error::ArithmeticOverflow)?;
-        if max_possible < required {
+        if !can_still_pass(proposal.for_votes, remaining, required)? {
             proposal.status = ProposalStatus::Rejected;
             proposal.phase = ProposalPhase::Expired;
             env.events().publish(
@@ -427,6 +413,30 @@ fn vote_on_loan_proposal_internal(
     }
     storage::set_loan_proposal(env, &proposal);
     Ok(())
+}
+
+/// Consensus bar for loan votes in basis points: `quorum_bps` when set, else
+/// the DAO's consensus threshold. Shared by loan proposals and extensions.
+fn approval_threshold(env: &Env, policy: &LoanPolicy) -> Result<u32, Error> {
+    if policy.quorum_bps > 0 {
+        Ok(policy.quorum_bps)
+    } else {
+        storage::get_threshold(env)
+    }
+}
+
+/// Whether `remaining` more voters, each at the largest weight one vote can
+/// carry, could still lift `for_votes` to `required`. When they can't, the
+/// vote is rejected early instead of waiting out the voting period.
+fn can_still_pass(for_votes: i128, remaining: u32, required: i128) -> Result<bool, Error> {
+    let vote_cap = ONE
+        .checked_add(util::MAX_STAKE_BONUS)
+        .ok_or(Error::ArithmeticOverflow)?;
+    let max_possible = (remaining as i128)
+        .checked_mul(vote_cap)
+        .and_then(|v| v.checked_add(for_votes))
+        .ok_or(Error::ArithmeticOverflow)?;
+    Ok(max_possible >= required)
 }
 
 /// Disburses a loan whose proposal already passed its vote but could not be
@@ -710,6 +720,189 @@ fn repay_loan_internal(
         (loan_id, borrower, remaining, asset),
     );
     Ok(())
+}
+
+/// Opens the loan's one due-date extension request and quotes its fee
+/// (ADR-0004). Only the borrower may ask, once per loan, for at most
+/// `max_loan_duration` of extra time.
+///
+/// The request must be filed early enough that its vote ends no later than
+/// the moment `mark_loan_defaulted` becomes callable, so a pending request
+/// can never be used to hold off a default. The deadline is measured against
+/// the loan's own `default_grace_period`, the value `mark_loan_defaulted`
+/// reads (#70), so a later policy change cannot break that guarantee.
+///
+/// The fee is the loan's own rate pro-rated for `extra_time` on what is still
+/// owed, rounded up to favour the treasury. It is only quoted here and is
+/// added to `total_repayment` if members approve.
+#[allow(deprecated)]
+pub fn request_loan_extension(
+    env: &Env,
+    borrower: Address,
+    loan_id: u32,
+    extra_time: u64,
+) -> Result<(), Error> {
+    util::require_initialized(env)?;
+    util::require_not_paused(env)?;
+    util::auth_member(env, &borrower)?;
+    let loan = storage::get_loan(env, loan_id).ok_or(Error::LoanNotFound)?;
+    if loan.borrower != borrower {
+        return Err(Error::NotBorrower);
+    }
+    if loan.status != LoanStatus::Active {
+        return Err(Error::LoanNotActive);
+    }
+    // A rejected or expired request still uses up the loan's single request.
+    if storage::get_loan_extension(env, loan_id).is_some() {
+        return Err(Error::ExtensionAlreadyRequested);
+    }
+    let policy = storage::get_policy(env)?;
+    if extra_time == 0 || extra_time > policy.max_loan_duration {
+        return Err(Error::InvalidExtension);
+    }
+    let now = env.ledger().timestamp();
+    let vote_end = now
+        .checked_add(policy.voting_period)
+        .ok_or(Error::ArithmeticOverflow)?;
+    let defaultable_at = loan
+        .due_time
+        .checked_add(loan.default_grace_period)
+        .ok_or(Error::ArithmeticOverflow)?;
+    if vote_end > defaultable_at {
+        return Err(Error::ExtensionWindowClosed);
+    }
+
+    // fee = ceil(outstanding * rate * extra_time / (BASIS_POINTS * term))
+    let outstanding = loan
+        .total_repayment
+        .checked_sub(loan.amount_repaid)
+        .ok_or(Error::ArithmeticOverflow)?;
+    let term = loan.due_time.saturating_sub(loan.start_time) as i128;
+    let denominator = BASIS_POINTS
+        .checked_mul(term)
+        .ok_or(Error::ArithmeticOverflow)?;
+    let fee = outstanding
+        .checked_mul(loan.interest_rate as i128)
+        .and_then(|v| v.checked_mul(extra_time as i128))
+        .and_then(|v| v.checked_add(denominator - ONE))
+        .and_then(|v| v.checked_div(denominator))
+        .ok_or(Error::ArithmeticOverflow)?;
+
+    storage::set_loan_extension(
+        env,
+        &LoanExtension {
+            loan_id,
+            extra_time,
+            fee,
+            created_at: now,
+            voting_period: policy.voting_period,
+            status: ProposalStatus::Pending,
+            for_votes: 0,
+            against_votes: 0,
+            votes_cast: 0,
+        },
+    );
+    env.events().publish(
+        (crate::events::EXT_REQ,),
+        (loan_id, borrower, extra_time, fee),
+    );
+    Ok(())
+}
+
+/// Casts `voter`'s weighted vote on a loan's extension request (ADR-0004).
+/// Weight and threshold are the ones loan approval uses, over the active
+/// members other than the borrower, who may not vote on their own request.
+/// Approval applies the extension in the same call: `due_time` moves out by
+/// `extra_time` and the quoted fee is added to `total_repayment`.
+#[allow(deprecated)]
+pub fn vote_on_loan_extension(
+    env: &Env,
+    voter: Address,
+    loan_id: u32,
+    support: bool,
+) -> Result<(), Error> {
+    util::require_initialized(env)?;
+    util::require_not_paused(env)?;
+    let member = util::auth_member(env, &voter)?;
+    let mut ext = storage::get_loan_extension(env, loan_id).ok_or(Error::ExtensionNotFound)?;
+    let now = env.ledger().timestamp();
+    // Closed at exactly the deadline, like loan proposals (#173).
+    if ext.status != ProposalStatus::Pending
+        || now >= ext.created_at.saturating_add(ext.voting_period)
+    {
+        return Err(Error::VotingEnded);
+    }
+    let mut loan = storage::get_loan(env, loan_id).ok_or(Error::LoanNotFound)?;
+    // Repaid during the vote: there is nothing left to extend.
+    if loan.status != LoanStatus::Active {
+        return Err(Error::LoanNotActive);
+    }
+    if voter == loan.borrower {
+        return Err(Error::NotAuthorized);
+    }
+    if storage::has_extension_voted(env, loan_id, &voter) {
+        return Err(Error::AlreadyVoted);
+    }
+    util::require_in_electorate(&member, ext.created_at)?;
+
+    let weight = util::voting_weight(env, &voter);
+    if support {
+        ext.for_votes += weight;
+    } else {
+        ext.against_votes += weight;
+    }
+    ext.votes_cast += 1;
+    storage::set_extension_voted(env, loan_id, &voter);
+    env.events()
+        .publish((crate::events::EXT_VOTE,), (loan_id, voter, support));
+
+    let policy = storage::get_policy(env)?;
+    let threshold = approval_threshold(env, &policy)?;
+    let electorate = storage::get_active_members(env).saturating_sub(1);
+    let required = util::required_votes(electorate, threshold);
+    if ext.for_votes >= required {
+        ext.status = ProposalStatus::Approved;
+        loan.due_time = loan
+            .due_time
+            .checked_add(ext.extra_time)
+            .ok_or(Error::ArithmeticOverflow)?;
+        loan.total_repayment = loan
+            .total_repayment
+            .checked_add(ext.fee)
+            .ok_or(Error::ArithmeticOverflow)?;
+        storage::set_loan(env, &loan);
+        env.events().publish(
+            (crate::events::EXT_APPR,),
+            (loan_id, loan.due_time, loan.total_repayment),
+        );
+    } else if !can_still_pass(
+        ext.for_votes,
+        electorate.saturating_sub(ext.votes_cast),
+        required,
+    )? {
+        ext.status = ProposalStatus::Rejected;
+        env.events().publish(
+            (crate::events::EXT_REJ,),
+            (loan_id, ext.for_votes, ext.against_votes),
+        );
+    }
+    storage::set_loan_extension(env, &ext);
+    Ok(())
+}
+
+/// The loan's extension request, if any. A request whose vote ran out while
+/// still `Pending` is reported as `Expired`; nothing is written, and nothing
+/// about the loan changes.
+pub fn get_loan_extension(env: &Env, loan_id: u32) -> Option<LoanExtension> {
+    storage::get_loan_extension(env, loan_id).map(|mut ext| {
+        let now = env.ledger().timestamp();
+        if ext.status == ProposalStatus::Pending
+            && now >= ext.created_at.saturating_add(ext.voting_period)
+        {
+            ext.status = ProposalStatus::Expired;
+        }
+        ext
+    })
 }
 
 /// Permissionless keeper call: persists the expired/rejected transition for a

@@ -1,7 +1,9 @@
 use soroban_sdk::{contracttype, Address, BytesN, Env, IntoVal, String, Val, Vec};
 
 use crate::error::Error;
-use crate::types::{Loan, LoanPolicy, LoanProposal, Member, PendingPolicyUpdate, TreasuryProposal};
+use crate::types::{
+    Loan, LoanExtension, LoanPolicy, LoanProposal, Member, PendingPolicyUpdate, TreasuryProposal,
+};
 
 // Soroban produces one ledger every ~5 seconds.
 const DAY_IN_LEDGERS: u32 = 17_280;
@@ -17,8 +19,8 @@ const PERSISTENT_THRESHOLD: u32 = PERSISTENT_BUMP - DAY_IN_LEDGERS;
 /// `docs.rs` (`proposal_exists`, `proposal_owner`, and the editing-phase check
 /// in `attach_document`), or (b) be documented on its variant or in its ADR as
 /// deliberately excluded from document attachment, with `attach_document`
-/// rejecting that kind with `InvalidProposal` (as ADR-0004 plans for
-/// `LoanExtension`). The compiler also flags the matches in `has_voted` and
+/// rejecting that kind with `InvalidProposal` (as `LoanExtension` does, per
+/// ADR-0004). The compiler also flags the matches in `has_voted` and
 /// `migration::seed_docs`. Never rename or remove a variant: they encode by
 /// name in stored keys and events.
 #[contracttype]
@@ -26,6 +28,10 @@ const PERSISTENT_THRESHOLD: u32 = PERSISTENT_BUMP - DAY_IN_LEDGERS;
 pub enum ProposalKind {
     Loan,
     Treasury,
+    /// A loan due-date extension request (ADR-0004), keyed by its loan id.
+    /// Deliberately excluded from document attachment: `attach_document`
+    /// rejects this kind with `InvalidProposal`.
+    LoanExtension,
 }
 
 /// Storage keys. Crate-private on purpose: `#[contracttype]` only writes
@@ -108,6 +114,10 @@ pub(crate) enum DataKey {
     ActiveLoansInAsset(Address),
     /// Addresses with indexed pending token additions, in proposal order.
     PendingTokenAdditions,
+    // ---- loan extensions (ADR-0004) ----
+    /// The one extension request a loan may have, keyed by loan id.
+    LoanExtension(u32),
+    ExtensionVoted(u32, Address),
 }
 
 #[contracttype]
@@ -422,6 +432,33 @@ pub fn has_loan_voted(env: &Env, id: u32, voter: &Address) -> bool {
 
 pub fn set_loan_voted(env: &Env, id: u32, voter: &Address) {
     let key = DataKey::LoanVoted(id, voter.clone());
+    env.storage().persistent().set(&key, &true);
+    extend_persistent(env, &key);
+}
+
+pub fn get_loan_extension(env: &Env, loan_id: u32) -> Option<LoanExtension> {
+    let key = DataKey::LoanExtension(loan_id);
+    let e = env.storage().persistent().get(&key);
+    if e.is_some() {
+        extend_persistent(env, &key);
+    }
+    e
+}
+
+pub fn set_loan_extension(env: &Env, e: &LoanExtension) {
+    let key = DataKey::LoanExtension(e.loan_id);
+    env.storage().persistent().set(&key, e);
+    extend_persistent(env, &key);
+}
+
+pub fn has_extension_voted(env: &Env, loan_id: u32, voter: &Address) -> bool {
+    env.storage()
+        .persistent()
+        .has(&DataKey::ExtensionVoted(loan_id, voter.clone()))
+}
+
+pub fn set_extension_voted(env: &Env, loan_id: u32, voter: &Address) {
+    let key = DataKey::ExtensionVoted(loan_id, voter.clone());
     env.storage().persistent().set(&key, &true);
     extend_persistent(env, &key);
 }

@@ -208,6 +208,7 @@ pub trait Contract {
         metadata_cid: Option<soroban_sdk::String>,
     ) -> Result<(), Error>;
     fn get_active_members(env: soroban_sdk::Env) -> u32;
+    fn get_loan_extension(env: soroban_sdk::Env, loan_id: u32) -> Option<LoanExtension>;
     fn repay_loan_partial(
         env: soroban_sdk::Env,
         borrower: soroban_sdk::Address,
@@ -326,6 +327,18 @@ pub trait Contract {
         env: soroban_sdk::Env,
         caller: soroban_sdk::Address,
         token: soroban_sdk::Address,
+    ) -> Result<(), Error>;
+    fn request_loan_extension(
+        env: soroban_sdk::Env,
+        borrower: soroban_sdk::Address,
+        loan_id: u32,
+        extra_time: u64,
+    ) -> Result<(), Error>;
+    fn vote_on_loan_extension(
+        env: soroban_sdk::Env,
+        voter: soroban_sdk::Address,
+        loan_id: u32,
+        support: bool,
     ) -> Result<(), Error>;
     fn get_consensus_threshold(env: soroban_sdk::Env) -> Result<u32, Error>;
     fn get_loan_proposal_count(env: soroban_sdk::Env) -> u32;
@@ -510,6 +523,19 @@ pub struct SeedDocEntry {
 }
 #[soroban_sdk::contracttype]
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct LoanExtension {
+    pub against_votes: i128,
+    pub created_at: u64,
+    pub extra_time: u64,
+    pub fee: i128,
+    pub for_votes: i128,
+    pub loan_id: u32,
+    pub status: ProposalStatus,
+    pub votes_cast: u32,
+    pub voting_period: u64,
+}
+#[soroban_sdk::contracttype]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct SeedNameEntry {
     pub name: soroban_sdk::String,
     pub owner: soroban_sdk::Address,
@@ -631,6 +657,7 @@ pub enum ProposalStatus {
 pub enum ProposalKind {
     Loan,
     Treasury,
+    LoanExtension,
 }
 #[soroban_sdk::contracterror]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -704,5 +731,9 @@ pub enum Error {
     TooManyVotesInBatch = 99,
     ArithmeticOverflow = 100,
     SeedLoanMemberMismatch = 101,
+    ExtensionAlreadyRequested = 102,
+    ExtensionWindowClosed = 103,
+    InvalidExtension = 104,
+    ExtensionNotFound = 105,
 }
 

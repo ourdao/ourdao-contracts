@@ -173,6 +173,26 @@ pub struct Loan {
     pub default_penalty_bps: u32,
 }
 
+/// A borrower's one request to push back a loan's `due_time` (ADR-0004).
+/// Keyed by the loan's id, so no counter is added and `Loan` keeps its shape.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LoanExtension {
+    pub loan_id: u32,
+    pub extra_time: u64,
+    /// Added to `Loan.total_repayment` only if the request is approved.
+    pub fee: i128,
+    pub created_at: u64,
+    /// `LoanPolicy.voting_period` copied at request time, like proposals do.
+    pub voting_period: u64,
+    /// `Pending`, `Approved`, `Rejected`, or `Expired` (reported by
+    /// `get_loan_extension` once the vote has run out; never stored).
+    pub status: ProposalStatus,
+    pub for_votes: i128,
+    pub against_votes: i128,
+    pub votes_cast: u32,
+}
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TreasuryProposal {

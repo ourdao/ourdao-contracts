@@ -43,8 +43,8 @@ use types::{
 pub use error::Error;
 pub use storage::ProposalKind;
 pub use types::{
-    Loan, LoanPolicy, LoanProposal, LoanTerms, Member, MemberLoanStats, MemberOverview,
-    PendingPolicyUpdate, StakingRewardClaimed, TreasuryProposal,
+    Loan, LoanExtension, LoanPolicy, LoanProposal, LoanTerms, Member, MemberLoanStats,
+    MemberOverview, PendingPolicyUpdate, StakingRewardClaimed, TreasuryProposal,
 };
 
 #[contract]
@@ -300,6 +300,31 @@ impl OurDao {
         loans::expire_loan_proposal(&env, proposal_id)
     }
 
+    /// Asks members for `extra_time` more on an active loan (ADR-0004).
+    /// `borrower` must authorize; one request per loan, filed early enough
+    /// that its vote ends before the loan can be defaulted. Emits `ext_req`
+    /// with the quoted fee. See `loans::request_loan_extension`.
+    pub fn request_loan_extension(
+        env: Env,
+        borrower: Address,
+        loan_id: u32,
+        extra_time: u64,
+    ) -> Result<(), Error> {
+        loans::request_loan_extension(&env, borrower, loan_id, extra_time)
+    }
+
+    /// Votes on a loan's extension request. `voter` must authorize and may not
+    /// be the borrower; emits `ext_vote`, then `ext_appr` or `ext_rej` once the
+    /// outcome is decided. See `loans::vote_on_loan_extension`.
+    pub fn vote_on_loan_extension(
+        env: Env,
+        voter: Address,
+        loan_id: u32,
+        support: bool,
+    ) -> Result<(), Error> {
+        loans::vote_on_loan_extension(&env, voter, loan_id, support)
+    }
+
     // ==================== treasury ====================
 
     /// Creates a treasury-withdrawal proposal in the base asset. `proposer`
@@ -528,6 +553,12 @@ impl OurDao {
     /// Returns a loan by id, or `None` if it does not exist.
     pub fn get_loan(env: Env, loan_id: u32) -> Option<Loan> {
         storage::get_loan(&env, loan_id)
+    }
+
+    /// Returns a loan's extension request, or `None` if it has none. A request
+    /// whose vote ran out while pending is reported as `Expired`.
+    pub fn get_loan_extension(env: Env, loan_id: u32) -> Option<LoanExtension> {
+        loans::get_loan_extension(&env, loan_id)
     }
 
     /// Returns a loan proposal with any expired phase refreshed from ledger
@@ -782,6 +813,7 @@ impl OurDao {
     pub fn has_voted(env: Env, kind: ProposalKind, proposal_id: u32, voter: Address) -> bool {
         match kind {
             ProposalKind::Loan => storage::has_loan_voted(&env, proposal_id, &voter),
+            ProposalKind::LoanExtension => storage::has_extension_voted(&env, proposal_id, &voter),
             ProposalKind::Treasury => {
                 // For private (commit-reveal) proposals, a commitment is
                 // sufficient to report "voted" — the double-vote guard is

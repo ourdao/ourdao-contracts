@@ -7,6 +7,7 @@ mod issue309_policy_timelock;
 mod issue310_snapshot;
 mod issue311_budget;
 mod issue313_thresholds;
+mod loan_extension;
 mod loans;
 mod membership;
 mod migration;
