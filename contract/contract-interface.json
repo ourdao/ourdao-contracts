@@ -1,0 +1,3745 @@
+[
+  {
+    "function_v0": {
+      "doc": "Pauses contract state changes. The pauser or an allowed caller must\\nauthorize the call and emit the pause event on success.",
+      "name": "pause",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Stakes base treasury assets to increase `member`'s voting weight.\\n`member` must authorize and have sufficient spendable balance; returns\\nstake/amount errors and emits the stake event.",
+      "name": "stake",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "member",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "amount",
+          "type": "i128"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns the name registered to `owner`, or `None` when none is\\nregistered. Read-only; may return `NotInitialized`.",
+      "name": "name_of",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "owner",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": {
+              "option": {
+                "value_type": "string"
+              }
+            },
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Resumes contract state changes. The pauser or an allowed caller must\\nauthorize the call.",
+      "name": "unpause",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Releases staked base treasury assets from `member`. `member` must\\nauthorize and have enough stake; emits the unstake event.",
+      "name": "unstake",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "member",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "amount",
+          "type": "i128"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Exits `member`, settling stake and accrued yield and reducing their\\ncontribution share. `member` must authorize and have no active loan.\\nReturns membership, balance, or arithmetic errors and emits exit events.",
+      "name": "exit_dao",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "member",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns a loan by id, or `None` if it does not exist.",
+      "name": "get_loan",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "loan_id",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "option": {
+            "value_type": {
+              "udt": {
+                "name": "Loan"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Reports whether `address` is an admin. Returns `NotInitialized` before setup.",
+      "name": "is_admin",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "address",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "bool",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Adds an admin. The caller must be an existing admin and authorize the\\ncall. May emit an admin-change event and returns an authorization or\\nconfiguration error when the change is not allowed.",
+      "name": "add_admin",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "admin",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns `member`'s current base-asset stake balance.",
+      "name": "get_stake",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "member",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        "i128"
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns the base treasury asset. Returns `NotInitialized` before setup.",
+      "name": "get_token",
+      "inputs": [],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "address",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns whether `voter` has cast a (possibly not-yet-revealed) vote\\non the given proposal. For public (non-private) proposals this is a\\nsimple check against the vote record. For commit-reveal treasury\\nproposals it checks whether the voter has committed (which is the\\nearliest point at which a double-vote is prevented).",
+      "name": "has_voted",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "kind",
+          "type": {
+            "udt": {
+              "name": "ProposalKind"
+            }
+          }
+        },
+        {
+          "doc": "",
+          "name": "proposal_id",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "voter",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        "bool"
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Reports whether `address` is an active registered member.",
+      "name": "is_member",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "address",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        "bool"
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Reports whether contract state changes are currently paused.",
+      "name": "is_paused",
+      "inputs": [],
+      "outputs": [
+        "bool"
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Seeds historical content-hash documents. Admin-only before\\n`lock_seeding`; returns `SeedingLocked` after migration closes.",
+      "name": "seed_docs",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "docs",
+          "type": {
+            "vec": {
+              "element_type": {
+                "udt": {
+                  "name": "SeedDocEntry"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns the current admin set. Returns `NotInitialized` before setup.",
+      "name": "get_admins",
+      "inputs": [],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": {
+              "vec": {
+                "element_type": "address"
+              }
+            },
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns the member record for `address`, or `None` if unregistered.",
+      "name": "get_member",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "address",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "option": {
+            "value_type": {
+              "udt": {
+                "name": "Member"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "One-time setup. `admins` bootstrap governance, `consensus_threshold` is\\nin basis points (e.g. 5100 = 51%), and `token` is the asset all DAO\\nvalue flows through.",
+      "name": "initialize",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "admins",
+          "type": {
+            "vec": {
+              "element_type": "address"
+            }
+          }
+        },
+        {
+          "doc": "",
+          "name": "consensus_threshold",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "membership_fee",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "policy",
+          "type": {
+            "udt": {
+              "name": "LoanPolicy"
+            }
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Lists up to `limit` loans within the proposal-ID window starting at\\n`start`. Missing loans are skipped and do not extend the window.",
+      "name": "list_loans",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "start",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "limit",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "vec": {
+            "element_type": {
+              "udt": {
+                "name": "Loan"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Repays the outstanding balance of a base-asset loan. `borrower` must\\nauthorize; invalid, inactive, or insufficient-payment conditions return\\nerrors and emit a loan-repayment event on success.",
+      "name": "repay_loan",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "borrower",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "loan_id",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Seeds historical loan records. Admin-only before `lock_seeding`;\\nreturns `SeedingLocked` after migration closes.",
+      "name": "seed_loans",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "loans",
+          "type": {
+            "vec": {
+              "element_type": {
+                "udt": {
+                  "name": "Loan"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Seeds historical name-registry records. Admin-only before\\n`lock_seeding`; returns `SeedingLocked` after migration closes.",
+      "name": "seed_names",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "names",
+          "type": {
+            "vec": {
+              "element_type": {
+                "udt": {
+                  "name": "SeedNameEntry"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Assigns the pauser role. The caller must authorize and be an admin.\\nMay return an authorization or role-state error.",
+      "name": "set_pauser",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "pauser",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Records multiple loan proposal votes atomically for `voter`. `voter`\\nmust authorize; any invalid vote aborts the batch and emits no partial\\nvote events.",
+      "name": "vote_batch",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "voter",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "votes",
+          "type": {
+            "vec": {
+              "element_type": {
+                "udt": {
+                  "name": "ProposalVote"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns this contract's semver, read from CARGO_PKG_VERSION at build\\ntime (#197) \\xe2\\x80\\x94 lets off-chain tooling / indexers detect which\\ncontract build a given deployment is running without relying on the\\nWASM hash alone.",
+      "name": "get_version",
+      "inputs": [],
+      "outputs": [
+        "string"
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Seeds historical stake records. Admin-only before `lock_seeding`;\\nreturns `SeedingLocked` after migration closes and emits no event.",
+      "name": "seed_stakes",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "stakes",
+          "type": {
+            "vec": {
+              "element_type": {
+                "udt": {
+                  "name": "SeedStakeEntry"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Extends the contract instance TTL. Permissionless; emits `TTL_BUMPED`.",
+      "name": "bump_dao_ttl",
+      "inputs": [],
+      "outputs": []
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns the address `delegator` has delegated their vote to, or `None`\\nif they have never called `delegate_vote`.",
+      "name": "get_delegate",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "delegator",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "option": {
+            "value_type": "address"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns the content hash attached to a proposal, or `None` if absent.\\nRead-only.",
+      "name": "get_document",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "kind",
+          "type": {
+            "udt": {
+              "name": "ProposalKind"
+            }
+          }
+        },
+        {
+          "doc": "",
+          "name": "proposal_id",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": {
+              "option": {
+                "value_type": "bytes"
+              }
+            },
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns up to `limit` member records starting at offset `start` in the\\ninternal member-address list. Returns an empty vec when `start` is past\\nthe end.  Skips addresses whose persistent storage entry has expired.",
+      "name": "list_members",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "start",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "limit",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "vec": {
+            "element_type": {
+              "udt": {
+                "name": "Member"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Irreversibly closes the seeding window. All `seed_*` entrypoints reject\\ncalls after this. Admin-only. Returns `SeedingAlreadyLocked` if already\\nlocked.",
+      "name": "lock_seeding",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Removes an admin subject to the remaining-admin and signer rules.\\nThe caller must be an admin and authorize the call.",
+      "name": "remove_admin",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "admin",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Removes `token` from the supported-asset whitelist.",
+      "name": "remove_token",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Creates a loan proposal in the base treasury asset. `borrower` must\\nauthorize and satisfy member, loan-policy, and treasury eligibility;\\nemits a loan proposal event on success.",
+      "name": "request_loan",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "borrower",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "amount",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "metadata_cid",
+          "type": {
+            "option": {
+              "value_type": "string"
+            }
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "u32",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Resolves a registered name to its owner address. Read-only; returns\\n`None` when unregistered and `NotInitialized` if the DAO is uninitialized.",
+      "name": "resolve_name",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "name",
+          "type": "string"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": {
+              "option": {
+                "value_type": "address"
+              }
+            },
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Seeds member records from a prior deployment. Admin-only; rejected after\\n`lock_seeding()` is called. See `docs/MIGRATION.md` for the full procedure.",
+      "name": "seed_members",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "members",
+          "type": {
+            "vec": {
+              "element_type": {
+                "udt": {
+                  "name": "Member"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Withdraw accrued loan-interest yield for the caller.",
+      "name": "claim_rewards",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "member",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "i128",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Delegates `delegator`'s voting power to `delegatee`. `delegator` must\\nauthorize; invalid targets and authorization failures return errors.",
+      "name": "delegate_vote",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "delegator",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "delegatee",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Registers or updates `name` for `owner`. `owner` must authorize and the\\nname must be valid and available; emits a name-registration event.",
+      "name": "register_name",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "name",
+          "type": "string"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Revokes the current pauser role. The caller must be an admin and\\nauthorize the call.",
+      "name": "revoke_pauser",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Whether `initialize` has run. Clients should check this before relying\\non any other view: every state-reading view returns\\n`Error::NotInitialized` on an uninitialized contract rather than\\ntrapping or returning an ambiguous empty value.",
+      "name": "is_initialized",
+      "inputs": [],
+      "outputs": [
+        "bool"
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Attaches a content hash to a proposal. The caller must be the\\nauthorized proposer/borrower and the document payload must be valid;\\nemits the document event.",
+      "name": "attach_document",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "kind",
+          "type": {
+            "udt": {
+              "name": "ProposalKind"
+            }
+          }
+        },
+        {
+          "doc": "",
+          "name": "proposal_id",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "content_hash",
+          "type": "bytes"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Headline DAO state in one call (#339): membership counts, spendable\\ntreasury per whitelisted asset, total staked, threshold, pause flag and\\nversion. Each field matches the individual view it summarises.",
+      "name": "get_dao_summary",
+      "inputs": [],
+      "outputs": [
+        {
+          "udt": {
+            "name": "DaoSummary"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns the active loan policy. Returns `NotInitialized` before setup.",
+      "name": "get_loan_policy",
+      "inputs": [],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": {
+              "udt": {
+                "name": "LoanPolicy"
+              }
+            },
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Registers `member`, collects the membership fee, and grants active\\nmember status. `member` must authorize; returns `AlreadyMember`,\\n`InsufficientTreasury`, or transfer/configuration errors when applicable\\nand emits the member-joined event.",
+      "name": "register_member",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "member",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Directly sets the loan policy. Requires admin authorization and returns\\n`InvalidLoanPolicy` for invalid values.",
+      "name": "set_loan_policy",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "policy",
+          "type": {
+            "udt": {
+              "name": "LoanPolicy"
+            }
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns a loan proposal with any expired phase refreshed from ledger\\ntime, or `None` if absent.",
+      "name": "get_loan_proposal",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "proposal_id",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "option": {
+            "value_type": {
+              "udt": {
+                "name": "LoanProposal"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns `member`'s unclaimed base-asset yield. No authorization is\\nrequired for this read; it may return `ArithmeticOverflow`.",
+      "name": "get_pending_yield",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "member",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "i128",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "",
+      "name": "get_total_members",
+      "inputs": [],
+      "outputs": [
+        "u32"
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns `member`'s current voting weight (base vote + staking bonus).\\nEquivalent to the weight applied when they cast a loan or treasury vote.",
+      "name": "get_voting_weight",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "member",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        "i128"
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns `true` while the seeding window is open (before `lock_seeding`\\nis called).",
+      "name": "is_seeding_locked",
+      "inputs": [],
+      "outputs": [
+        "bool"
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Convenience pre-check: `true` only when the stored commitment matches\\nthe supplied reveal inputs.",
+      "name": "verify_commitment",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "voter",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "proposal_id",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "support",
+          "type": "bool"
+        },
+        {
+          "doc": "",
+          "name": "salt",
+          "type": {
+            "bytes_n": {
+              "n": 32
+            }
+          }
+        }
+      ],
+      "outputs": [
+        "bool"
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Changes the amount or metadata of a borrower's loan proposal while it\\nremains in its editing window. `borrower` must authorize.",
+      "name": "edit_loan_proposal",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "borrower",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "proposal_id",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "new_amount",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "metadata_cid",
+          "type": {
+            "option": {
+              "value_type": "string"
+            }
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns the current number of active members.",
+      "name": "get_active_members",
+      "inputs": [],
+      "outputs": [
+        "u32"
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Repays up to `amount` of a loan's outstanding balance. See\\n`loans::repay_loan_partial` for the interest/principal split and why\\nthis is a separate entrypoint from `repay_loan`.",
+      "name": "repay_loan_partial",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "borrower",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "loan_id",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "amount",
+          "type": "i128"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Seeds historical pending-yield accumulators. Admin-only before\\n`lock_seeding`; returns `SeedingLocked` after migration closes.",
+      "name": "seed_pending_yield",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "yields",
+          "type": {
+            "vec": {
+              "element_type": {
+                "udt": {
+                  "name": "SeedYieldEntry"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Maximum additional votes a member can earn through staking.",
+      "name": "get_max_stake_bonus",
+      "inputs": [],
+      "outputs": [
+        "i128"
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns everything about `member` in one call: their record, stake,\\nunclaimed yield, loan track record, registered name and delegate.\\nReturns `NotMember` if the address has never registered.",
+      "name": "get_member_overview",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "member",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": {
+              "udt": {
+                "name": "MemberOverview"
+              }
+            },
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Marks an overdue loan as defaulted. Permissionless \\xe2\\x80\\x94 see `loans::mark_loan_defaulted`.",
+      "name": "mark_loan_defaulted",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "loan_id",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Repays a loan using the asset the loan was denominated in.",
+      "name": "repay_loan_in_asset",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "borrower",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "loan_id",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "asset",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Calculates `member`'s contribution-proportional share of the base\\ntreasury. Returns zero for no active record and `ArithmeticOverflow`\\nif the proportional calculation cannot be represented.",
+      "name": "calculate_exit_share",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "member",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "i128",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Quotes the terms a loan of `amount` would carry right now. The quote\\ncan only be honoured when `amount <= max_loan`: with an empty or\\nnegative treasury `max_loan` is 0 and the rate shown is the policy\\nmaximum for a loan that cannot be issued. See\\n`loans::calculate_loan_terms`.",
+      "name": "calculate_loan_terms",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "amount",
+          "type": "i128"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": {
+              "udt": {
+                "name": "LoanTerms"
+              }
+            },
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Withdraws a loan proposal while it is still in its editing period.\\nSee `loans::cancel_loan_proposal`.",
+      "name": "cancel_loan_proposal",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "borrower",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "proposal_id",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Cancels a pending policy update. Requires admin authorization and emits\\na policy cancellation event.",
+      "name": "cancel_policy_update",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Stores a hidden treasury-vote commitment. `voter` must authorize and\\ncommit during the configured window; emits a commitment event.",
+      "name": "commit_treasury_vote",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "voter",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "proposal_id",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "commitment",
+          "type": {
+            "bytes_n": {
+              "n": 32
+            }
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Permissionless keeper call: persists the expired/rejected transition for\\na loan proposal whose voting window has passed without reaching quorum.",
+      "name": "expire_loan_proposal",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "proposal_id",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns the spendable base treasury balance. Returns\\n`NotInitialized` before setup.",
+      "name": "get_treasury_balance",
+      "inputs": [],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "i128",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Reports the first failing eligibility check. Checking again after\\nresolving that error can reveal another eligibility failure.",
+      "name": "is_eligible_for_loan",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "member",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns whether `token` is currently an approved treasury asset.",
+      "name": "is_token_whitelisted",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        "bool"
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Reveals a previously committed treasury vote. `voter` must authorize\\nand provide the matching commitment inputs; emits the treasury-vote\\nevent after tallying.",
+      "name": "reveal_treasury_vote",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "voter",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "proposal_id",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "support",
+          "type": "bool"
+        },
+        {
+          "doc": "",
+          "name": "salt",
+          "type": {
+            "bytes_n": {
+              "n": 32
+            }
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Executes a mature pending policy update. Requires admin authorization\\nand returns timelock or policy errors when not eligible.",
+      "name": "execute_policy_update",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns `member`'s lifetime loan track record: total loans taken, loans\\nfully repaid, and loans currently outstanding. Single O(1) storage read;\\nreturns `NotMember` if the address has never registered.",
+      "name": "get_member_loan_stats",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "member",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": {
+              "udt": {
+                "name": "MemberLoanStats"
+              }
+            },
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Stake tokens required per additional unit of voting bonus.\\nEvery `stake_weight_unit` tokens staked grants +1 vote, up to the cap.",
+      "name": "get_stake_weight_unit",
+      "inputs": [],
+      "outputs": [
+        "i128"
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns every accepted treasury asset and its current contract balance.\\n\\nThe base token is always included first by `get_whitelisted_tokens`,\\nfollowed by every currently whitelisted extra asset.",
+      "name": "get_treasury_balances",
+      "inputs": [],
+      "outputs": [
+        {
+          "map": {
+            "key_type": "address",
+            "value_type": "i128"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns a treasury proposal by id, or `None` if absent.",
+      "name": "get_treasury_proposal",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "proposal_id",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "option": {
+            "value_type": {
+              "udt": {
+                "name": "TreasuryProposal"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Submits a timelocked loan-policy update. Requires admin authorization\\nand emits a policy proposal event.",
+      "name": "propose_policy_update",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "policy",
+          "type": {
+            "udt": {
+              "name": "LoanPolicy"
+            }
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Requests a loan denominated in a specific whitelisted asset.",
+      "name": "request_loan_in_asset",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "borrower",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "amount",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "asset",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "metadata_cid",
+          "type": {
+            "option": {
+              "value_type": "string"
+            }
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "u32",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Casts `voter`'s support or rejection vote on a loan proposal.\\n`voter` must authorize and be eligible; duplicate, ended, or invalid\\nvotes return errors and emit the loan-vote event on success.",
+      "name": "vote_on_loan_proposal",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "voter",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "proposal_id",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "support",
+          "type": "bool"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Withdraws accrued yield in the specified asset without affecting other\\nasset snapshots.",
+      "name": "claim_rewards_in_asset",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "member",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "asset",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "i128",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Pays out an approved loan that was waiting on treasury funds.\\nPermissionless keeper call \\xe2\\x80\\x94 see `loans::disburse_approved_loan`.",
+      "name": "disburse_approved_loan",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "proposal_id",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Executes a previously proposed token addition once consensus is met.",
+      "name": "execute_token_addition",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns the full list of approved treasury assets.",
+      "name": "get_whitelisted_tokens",
+      "inputs": [],
+      "outputs": [
+        {
+          "vec": {
+            "element_type": "address"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Proposes adding `token` to the treasury's supported-asset whitelist.\\nRequires admin consensus; see `admin::propose_token_addition`.",
+      "name": "propose_token_addition",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns the governance consensus threshold in basis points.\\nReturns `NotInitialized` before setup.",
+      "name": "get_consensus_threshold",
+      "inputs": [],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "u32",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns the next loan-proposal sequence value as the proposal count.",
+      "name": "get_loan_proposal_count",
+      "inputs": [],
+      "outputs": [
+        "u32"
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Reconciliation view for `asset` (#288): the contract's actual token\\nbalance, how much of it is member stake, and the principal still owed\\non active loans in that asset. `token_balance - staked` equals\\n`get_treasury_balance_in_asset`; comparing these figures against the\\nindexed event history exposes drift or direct donations. Also answers\\nfor a removed asset, whose loans may still be outstanding.",
+      "name": "get_treasury_accounting",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "asset",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": {
+              "udt": {
+                "name": "TreasuryAccounting"
+              }
+            },
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns up to `limit` treasury proposals starting at proposal id `start`.\\nIds are sequential from 0; absent entries (expired from storage) are\\nskipped.  Returns an empty vec when `start` is past the last proposal.",
+      "name": "list_treasury_proposals",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "start",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "limit",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "vec": {
+            "element_type": {
+              "udt": {
+                "name": "TreasuryProposal"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Updates the governance consensus threshold. The caller must be an admin\\nand authorize the call; invalid thresholds return `InvalidThreshold`.",
+      "name": "set_consensus_threshold",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "caller",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "threshold",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Withdraws a pending treasury proposal within the policy's editing\\nperiod. See `treasury::cancel_treasury_proposal`.",
+      "name": "cancel_treasury_proposal",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "proposer",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "proposal_id",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Permissionlessly expires a treasury proposal after its voting window.\\nReturns `NotInVotingPhase` for an active proposal and emits an expiry\\nevent on transition.",
+      "name": "expire_treasury_proposal",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "proposal_id",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Commit and reveal boundary timestamps for a private treasury proposal.",
+      "name": "get_commit_reveal_window",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "proposal_id",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": {
+              "tuple": {
+                "value_types": [
+                  "u64",
+                  "u64"
+                ]
+              }
+            },
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Executes an approved treasury withdrawal that was waiting on treasury\\nfunds. Permissionless keeper call \\xe2\\x80\\x94 see `treasury::execute_approved`.",
+      "name": "execute_treasury_proposal",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "proposal_id",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns the pending timelocked policy update, or `None` if none exists.",
+      "name": "get_pending_policy_update",
+      "inputs": [],
+      "outputs": [
+        {
+          "option": {
+            "value_type": {
+              "udt": {
+                "name": "PendingPolicyUpdate"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Casts `voter`'s support or rejection vote on a treasury proposal.\\n`voter` must authorize and satisfy electorate rules; duplicate or ended\\nvotes return errors and emit a treasury-vote event.",
+      "name": "vote_on_treasury_proposal",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "voter",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "proposal_id",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "support",
+          "type": "bool"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "void",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns the ledger time at which `token`'s pending addition can be\\nexecuted, or `None` if no addition is pending for it.",
+      "name": "get_pending_token_addition",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "option": {
+            "value_type": "u64"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns `member`'s unclaimed yield denominated in `asset`.",
+      "name": "get_pending_yield_in_asset",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "member",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "asset",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "i128",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Lists indexed pending asset additions with their earliest execution times.",
+      "name": "get_pending_token_additions",
+      "inputs": [],
+      "outputs": [
+        {
+          "vec": {
+            "element_type": {
+              "tuple": {
+                "value_types": [
+                  "address",
+                  "u64"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns the next treasury-proposal sequence value as the proposal count.",
+      "name": "get_treasury_proposal_count",
+      "inputs": [],
+      "outputs": [
+        "u32"
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Creates a treasury-withdrawal proposal in the base asset. `proposer`\\nmust authorize and emit the proposal event; invalid amount or state\\nreturns an error.",
+      "name": "propose_treasury_withdrawal",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "proposer",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "amount",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "destination",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "reason",
+          "type": "string"
+        },
+        {
+          "doc": "",
+          "name": "private",
+          "type": "bool"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "u32",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Proposes a treasury withdrawal denominated in a specific whitelisted asset.\\nNamed without the `treasury_` prefix because Soroban caps entrypoint\\nnames at 32 characters.",
+      "name": "propose_withdrawal_in_asset",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "proposer",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "amount",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "asset",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "destination",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "reason",
+          "type": "string"
+        },
+        {
+          "doc": "",
+          "name": "private",
+          "type": "bool"
+        }
+      ],
+      "outputs": [
+        {
+          "result": {
+            "ok_type": "u32",
+            "error_type": "error"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "function_v0": {
+      "doc": "Returns the treasury balance held in a specific whitelisted asset.",
+      "name": "get_treasury_balance_in_asset",
+      "inputs": [
+        {
+          "doc": "",
+          "name": "asset",
+          "type": "address"
+        }
+      ],
+      "outputs": [
+        "i128"
+      ]
+    }
+  },
+  {
+    "udt_error_enum_v0": {
+      "doc": "Every failure mode the DAO can return. Numeric codes are stable and part of\\nthe contract's public ABI, so append new variants rather than renumbering.",
+      "lib": "",
+      "name": "Error",
+      "cases": [
+        {
+          "doc": "",
+          "name": "AlreadyInitialized",
+          "value": 1
+        },
+        {
+          "doc": "",
+          "name": "NotInitialized",
+          "value": 2
+        },
+        {
+          "doc": "",
+          "name": "InvalidThreshold",
+          "value": 3
+        },
+        {
+          "doc": "",
+          "name": "InvalidAmount",
+          "value": 4
+        },
+        {
+          "doc": "",
+          "name": "InvalidLoanPolicy",
+          "value": 5
+        },
+        {
+          "doc": "",
+          "name": "Paused",
+          "value": 6
+        },
+        {
+          "doc": "",
+          "name": "NotPaused",
+          "value": 7
+        },
+        {
+          "doc": "",
+          "name": "NotAuthorized",
+          "value": 10
+        },
+        {
+          "doc": "",
+          "name": "NotAdmin",
+          "value": 11
+        },
+        {
+          "doc": "",
+          "name": "NotMember",
+          "value": 12
+        },
+        {
+          "doc": "",
+          "name": "AlreadyAdmin",
+          "value": 13
+        },
+        {
+          "doc": "",
+          "name": "AlreadyMember",
+          "value": 14
+        },
+        {
+          "doc": "",
+          "name": "CannotRemoveLastAdmin",
+          "value": 15
+        },
+        {
+          "doc": "",
+          "name": "MemberNotActive",
+          "value": 20
+        },
+        {
+          "doc": "",
+          "name": "HasActiveLoan",
+          "value": 21
+        },
+        {
+          "doc": "",
+          "name": "ProposalNotFound",
+          "value": 30
+        },
+        {
+          "doc": "",
+          "name": "NotBorrower",
+          "value": 31
+        },
+        {
+          "doc": "",
+          "name": "NotInEditingPhase",
+          "value": 32
+        },
+        {
+          "doc": "",
+          "name": "NotInVotingPhase",
+          "value": 33
+        },
+        {
+          "doc": "",
+          "name": "VotingEnded",
+          "value": 34
+        },
+        {
+          "doc": "",
+          "name": "AlreadyVoted",
+          "value": 35
+        },
+        {
+          "doc": "",
+          "name": "NotEligibleForLoan",
+          "value": 36
+        },
+        {
+          "doc": "",
+          "name": "CooldownActive",
+          "value": 37
+        },
+        {
+          "doc": "",
+          "name": "LoanNotFound",
+          "value": 38
+        },
+        {
+          "doc": "",
+          "name": "LoanNotActive",
+          "value": 39
+        },
+        {
+          "doc": "",
+          "name": "ExceedsTreasuryRatio",
+          "value": 40
+        },
+        {
+          "doc": "",
+          "name": "InsufficientTreasury",
+          "value": 41
+        },
+        {
+          "doc": "",
+          "name": "LoanNotOverdue",
+          "value": 42
+        },
+        {
+          "doc": "",
+          "name": "TreasuryProposalNotFound",
+          "value": 50
+        },
+        {
+          "doc": "",
+          "name": "NameTaken",
+          "value": 60
+        },
+        {
+          "doc": "Reserved: never returned. No contract code path produces it; kept\\nbecause codes are append-only public ABI (#252).",
+          "name": "NameNotFound",
+          "value": 61
+        },
+        {
+          "doc": "",
+          "name": "NoStake",
+          "value": 62
+        },
+        {
+          "doc": "",
+          "name": "InsufficientStake",
+          "value": 63
+        },
+        {
+          "doc": "",
+          "name": "NoCommitment",
+          "value": 64
+        },
+        {
+          "doc": "",
+          "name": "CommitmentMismatch",
+          "value": 65
+        },
+        {
+          "doc": "",
+          "name": "AlreadyRevealed",
+          "value": 66
+        },
+        {
+          "doc": "",
+          "name": "NothingToClaim",
+          "value": 67
+        },
+        {
+          "doc": "",
+          "name": "ProposalNotExpired",
+          "value": 70
+        },
+        {
+          "doc": "",
+          "name": "InvalidName",
+          "value": 71
+        },
+        {
+          "doc": "",
+          "name": "NotYetRevealed",
+          "value": 72
+        },
+        {
+          "doc": "Caller is not the proposal's proposer/borrower and may not modify its\\nattached document (#21).",
+          "name": "NotProposalOwner",
+          "value": 73
+        },
+        {
+          "doc": "",
+          "name": "DocumentTooLarge",
+          "value": 74
+        },
+        {
+          "doc": "The token passed to `initialize` is not a contract implementing the\\ntoken interface (#115).",
+          "name": "InvalidToken",
+          "value": 75
+        },
+        {
+          "doc": "Timelock delay has not expired yet (#192).",
+          "name": "TimelockNotExpired",
+          "value": 76
+        },
+        {
+          "doc": "No policy update is currently pending (#192).",
+          "name": "NoPendingPolicy",
+          "value": 77
+        },
+        {
+          "doc": "Proposal metadata CID is invalid (#194).",
+          "name": "InvalidMetadataCid",
+          "value": 78
+        },
+        {
+          "doc": "Invalid delegation target (e.g. self-delegation) (#188).",
+          "name": "InvalidDelegation",
+          "value": 79
+        },
+        {
+          "doc": "",
+          "name": "InvalidProposal",
+          "value": 80
+        },
+        {
+          "doc": "",
+          "name": "AlreadyPauser",
+          "value": 81
+        },
+        {
+          "doc": "",
+          "name": "NotPauser",
+          "value": 82
+        },
+        {
+          "doc": "The asset is not on the treasury whitelist (#236).",
+          "name": "TokenNotWhitelisted",
+          "value": 83
+        },
+        {
+          "doc": "The asset is already on the treasury whitelist (#236).",
+          "name": "TokenAlreadyWhitelisted",
+          "value": 84
+        },
+        {
+          "doc": "No addition is pending for this asset (#236).",
+          "name": "NoPendingTokenAddition",
+          "value": 85
+        },
+        {
+          "doc": "The asset does not match the one the loan was issued in (#236).",
+          "name": "AssetMismatch",
+          "value": 86
+        },
+        {
+          "doc": "The base token set at initialization can't be removed (#236).",
+          "name": "CannotRemoveBaseToken",
+          "value": 87
+        },
+        {
+          "doc": "Seeding is locked; `lock_seeding` has already been called (#332).",
+          "name": "SeedingLocked",
+          "value": 88
+        },
+        {
+          "doc": "Seeding is already locked; calling `lock_seeding` again is a no-op error (#333).",
+          "name": "SeedingAlreadyLocked",
+          "value": 89
+        },
+        {
+          "doc": "Member already has the maximum number of simultaneously open proposals.",
+          "name": "TooManyOpenProposals",
+          "value": 90
+        },
+        {
+          "doc": "A borrower cannot vote on their own loan proposal (#327).",
+          "name": "BorrowerCannotVote",
+          "value": 91
+        },
+        {
+          "doc": "A whitelisted token with treasury funds cannot be removed (#272).",
+          "name": "TokenHasBalance",
+          "value": 92
+        },
+        {
+          "doc": "A token with active loans cannot be removed (#273).",
+          "name": "TokenHasActiveLoans",
+          "value": 93
+        },
+        {
+          "doc": "A returning member still has a loan outstanding or a defaulted loan on\\nrecord, so they may not rejoin and reset their standing (#168).",
+          "name": "DefaultedLoanOutstanding",
+          "value": 94
+        },
+        {
+          "doc": "The treasury asset whitelist has reached its bounded maximum (#282).",
+          "name": "WhitelistFull",
+          "value": 95
+        },
+        {
+          "doc": "An inbound token transfer delivered less than the requested amount (#283).",
+          "name": "TransferAmountMismatch",
+          "value": 96
+        },
+        {
+          "doc": "The voter joined (or rejoined) the DAO after the proposal was created,\\nso they are outside the electorate its quorum was fixed against (#73).",
+          "name": "JoinedAfterProposal",
+          "value": 97
+        },
+        {
+          "doc": "Admin list has reached MAX_ADMINS; remove one before adding another (#68).",
+          "name": "TooManyAdmins",
+          "value": 98
+        },
+        {
+          "doc": "Batch vote call exceeded the maximum number of votes allowed per call.",
+          "name": "TooManyVotesInBatch",
+          "value": 99
+        },
+        {
+          "doc": "Checked `i128` arithmetic overflowed; the operation was rejected.",
+          "name": "ArithmeticOverflow",
+          "value": 100
+        }
+      ]
+    }
+  },
+  {
+    "udt_struct_v0": {
+      "doc": "",
+      "lib": "",
+      "name": "Loan",
+      "fields": [
+        {
+          "doc": "",
+          "name": "amount_repaid",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "borrower",
+          "type": "address"
+        },
+        {
+          "doc": "`LoanPolicy.default_grace_period` in force when this loan was\\ndisbursed. Default terms are part of the obligation the borrower\\naccepted, so a later policy change must not alter them (#70).",
+          "name": "default_grace_period",
+          "type": "u64"
+        },
+        {
+          "doc": "`LoanPolicy.default_penalty_bps` in force when this loan was disbursed.\\nSee `default_grace_period`.",
+          "name": "default_penalty_bps",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "due_time",
+          "type": "u64"
+        },
+        {
+          "doc": "",
+          "name": "id",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "interest_rate",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "principal",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "start_time",
+          "type": "u64"
+        },
+        {
+          "doc": "",
+          "name": "status",
+          "type": {
+            "udt": {
+              "name": "LoanStatus"
+            }
+          }
+        },
+        {
+          "doc": "",
+          "name": "total_repayment",
+          "type": "i128"
+        }
+      ]
+    }
+  },
+  {
+    "udt_struct_v0": {
+      "doc": "",
+      "lib": "",
+      "name": "Member",
+      "fields": [
+        {
+          "doc": "Loans currently outstanding (disbursed and not yet repaid or defaulted).",
+          "name": "active_loans",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "address",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "contribution",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "has_active_loan",
+          "type": "bool"
+        },
+        {
+          "doc": "",
+          "name": "join_time",
+          "type": "u64"
+        },
+        {
+          "doc": "",
+          "name": "last_loan_time",
+          "type": "u64"
+        },
+        {
+          "doc": "Lifetime count of this member's loans that reached full repayment.",
+          "name": "repaid_loans",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "share_balance",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "status",
+          "type": {
+            "udt": {
+              "name": "MemberStatus"
+            }
+          }
+        },
+        {
+          "doc": "Lifetime count of loans disbursed to this member.",
+          "name": "total_loans",
+          "type": "u32"
+        }
+      ]
+    }
+  },
+  {
+    "udt_struct_v0": {
+      "doc": "Computed loan terms returned by the read-only quote helper.\\n\\nA quote is only honourable when `amount <= max_loan`. Above that,\\n`request_loan` rejects the amount with `ExceedsTreasuryRatio`, and the\\nrate shown is not one anyone can borrow at (#80).",
+      "lib": "",
+      "name": "LoanTerms",
+      "fields": [
+        {
+          "doc": "",
+          "name": "duration",
+          "type": "u64"
+        },
+        {
+          "doc": "",
+          "name": "interest_rate",
+          "type": "u32"
+        },
+        {
+          "doc": "Largest principal `request_loan` would accept right now:\\n`treasury_balance \\xc3\\x97 max_loan_to_treasury_ratio / 10_000`, or 0 when the\\ntreasury is empty or negative (staked funds exceeding the token\\nbalance).",
+          "name": "max_loan",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "total_repayment",
+          "type": "i128"
+        }
+      ]
+    }
+  },
+  {
+    "udt_struct_v0": {
+      "doc": "Headline DAO state returned by `get_dao_summary` (#339).",
+      "lib": "",
+      "name": "DaoSummary",
+      "fields": [
+        {
+          "doc": "",
+          "name": "active_members",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "consensus_threshold",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "paused",
+          "type": "bool"
+        },
+        {
+          "doc": "",
+          "name": "total_members",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "total_staked",
+          "type": "i128"
+        },
+        {
+          "doc": "Spendable treasury in the base token; same value as `get_treasury_balance`.",
+          "name": "treasury_balance",
+          "type": "i128"
+        },
+        {
+          "doc": "Spendable treasury in every whitelisted asset, base token first.",
+          "name": "treasury_balances",
+          "type": {
+            "vec": {
+              "element_type": {
+                "udt": {
+                  "name": "AssetBalance"
+                }
+              }
+            }
+          }
+        },
+        {
+          "doc": "",
+          "name": "version",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  {
+    "udt_struct_v0": {
+      "doc": "Tunable lending parameters. Durations are in ledger seconds; rates in bps.",
+      "lib": "",
+      "name": "LoanPolicy",
+      "fields": [
+        {
+          "doc": "",
+          "name": "cooldown_period",
+          "type": "u64"
+        },
+        {
+          "doc": "Extra time past `Loan.due_time` before a loan becomes markable as defaulted.",
+          "name": "default_grace_period",
+          "type": "u64"
+        },
+        {
+          "doc": "Basis-points of the defaulting borrower's `contribution` slashed on default.",
+          "name": "default_penalty_bps",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "editing_period",
+          "type": "u64"
+        },
+        {
+          "doc": "",
+          "name": "max_interest_rate",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "max_loan_duration",
+          "type": "u64"
+        },
+        {
+          "doc": "",
+          "name": "max_loan_to_treasury_ratio",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "membership_contribution",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "min_interest_rate",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "min_membership_duration",
+          "type": "u64"
+        },
+        {
+          "doc": "",
+          "name": "quorum_bps",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "treasury_threshold",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "voting_period",
+          "type": "u64"
+        }
+      ]
+    }
+  },
+  {
+    "udt_union_v0": {
+      "doc": "",
+      "lib": "",
+      "name": "LoanStatus",
+      "cases": [
+        {
+          "void_v0": {
+            "doc": "",
+            "name": "Active"
+          }
+        },
+        {
+          "void_v0": {
+            "doc": "",
+            "name": "Repaid"
+          }
+        },
+        {
+          "void_v0": {
+            "doc": "",
+            "name": "Defaulted"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "udt_struct_v0": {
+      "doc": "Spendable treasury balance in one whitelisted asset (#339).",
+      "lib": "",
+      "name": "AssetBalance",
+      "fields": [
+        {
+          "doc": "",
+          "name": "asset",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "balance",
+          "type": "i128"
+        }
+      ]
+    }
+  },
+  {
+    "udt_struct_v0": {
+      "doc": "",
+      "lib": "",
+      "name": "LoanProposal",
+      "fields": [
+        {
+          "doc": "Active-member count when the proposal was created. Quorum and the\\nearly-rejection bound are computed from this, not the live count, so\\nmembership churn during the vote cannot move the bar (#73).",
+          "name": "active_members",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "against_votes",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "amount",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "borrower",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "created_at",
+          "type": "u64"
+        },
+        {
+          "doc": "",
+          "name": "duration",
+          "type": "u64"
+        },
+        {
+          "doc": "",
+          "name": "editing_period_end",
+          "type": "u64"
+        },
+        {
+          "doc": "",
+          "name": "for_votes",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "id",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "interest_rate",
+          "type": "u32"
+        },
+        {
+          "doc": "Timestamp of the last `edit_loan_proposal` call (`None` if never edited).",
+          "name": "last_edited_at",
+          "type": {
+            "option": {
+              "value_type": "u64"
+            }
+          }
+        },
+        {
+          "doc": "",
+          "name": "metadata_cid",
+          "type": {
+            "option": {
+              "value_type": "string"
+            }
+          }
+        },
+        {
+          "doc": "",
+          "name": "phase",
+          "type": {
+            "udt": {
+              "name": "ProposalPhase"
+            }
+          }
+        },
+        {
+          "doc": "",
+          "name": "status",
+          "type": {
+            "udt": {
+              "name": "ProposalStatus"
+            }
+          }
+        },
+        {
+          "doc": "",
+          "name": "total_repayment",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "votes_cast",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "voting_period",
+          "type": "u64"
+        }
+      ]
+    }
+  },
+  {
+    "udt_union_v0": {
+      "doc": "",
+      "lib": "",
+      "name": "MemberStatus",
+      "cases": [
+        {
+          "void_v0": {
+            "doc": "",
+            "name": "ActiveMember"
+          }
+        },
+        {
+          "void_v0": {
+            "doc": "",
+            "name": "Inactive"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "udt_struct_v0": {
+      "doc": "",
+      "lib": "",
+      "name": "ProposalVote",
+      "fields": [
+        {
+          "doc": "",
+          "name": "proposal_id",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "vote",
+          "type": "bool"
+        }
+      ]
+    }
+  },
+  {
+    "udt_struct_v0": {
+      "doc": "",
+      "lib": "",
+      "name": "SeedDocEntry",
+      "fields": [
+        {
+          "doc": "",
+          "name": "content_hash",
+          "type": "bytes"
+        },
+        {
+          "doc": "",
+          "name": "kind",
+          "type": {
+            "udt": {
+              "name": "ProposalKind"
+            }
+          }
+        },
+        {
+          "doc": "",
+          "name": "proposal_id",
+          "type": "u32"
+        }
+      ]
+    }
+  },
+  {
+    "udt_union_v0": {
+      "doc": "",
+      "lib": "",
+      "name": "ProposalPhase",
+      "cases": [
+        {
+          "void_v0": {
+            "doc": "",
+            "name": "Editing"
+          }
+        },
+        {
+          "void_v0": {
+            "doc": "",
+            "name": "Voting"
+          }
+        },
+        {
+          "void_v0": {
+            "doc": "",
+            "name": "Executed"
+          }
+        },
+        {
+          "void_v0": {
+            "doc": "",
+            "name": "Expired"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "udt_struct_v0": {
+      "doc": "",
+      "lib": "",
+      "name": "SeedNameEntry",
+      "fields": [
+        {
+          "doc": "",
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "doc": "",
+          "name": "owner",
+          "type": "address"
+        }
+      ]
+    }
+  },
+  {
+    "udt_struct_v0": {
+      "doc": "Everything the DAO knows about one member, returned by\\n`get_member_overview` in a single call.\\n\\nConvenience aggregation view combining independently queryable fields:\\n- `member`: general member status and metadata\\n- `stake`: matches `get_stake`\\n- `pending_yield`: matches `get_pending_yield`\\n- `loan_stats`: matches `get_member_loan_stats`\\n- `name`: matches `name_of`\\n- `delegate`: matches `get_delegate`\\n\\nMaintenance obligation: Every future addition to any of the underlying\\nindividual member views must have a matching field added here to ensure\\nthe aggregate view remains in sync.",
+      "lib": "",
+      "name": "MemberOverview",
+      "fields": [
+        {
+          "doc": "Address this member delegated their vote to, if any.",
+          "name": "delegate",
+          "type": {
+            "option": {
+              "value_type": "address"
+            }
+          }
+        },
+        {
+          "doc": "",
+          "name": "loan_stats",
+          "type": {
+            "udt": {
+              "name": "MemberLoanStats"
+            }
+          }
+        },
+        {
+          "doc": "",
+          "name": "member",
+          "type": {
+            "udt": {
+              "name": "Member"
+            }
+          }
+        },
+        {
+          "doc": "Name registered to this address, if any.",
+          "name": "name",
+          "type": {
+            "option": {
+              "value_type": "string"
+            }
+          }
+        },
+        {
+          "doc": "Interest yield accrued and not yet claimed via `claim_rewards`.",
+          "name": "pending_yield",
+          "type": "i128"
+        },
+        {
+          "doc": "Tokens the member has staked for a voting-weight bonus.",
+          "name": "stake",
+          "type": "i128"
+        }
+      ]
+    }
+  },
+  {
+    "udt_union_v0": {
+      "doc": "",
+      "lib": "",
+      "name": "ProposalStatus",
+      "cases": [
+        {
+          "void_v0": {
+            "doc": "",
+            "name": "Pending"
+          }
+        },
+        {
+          "void_v0": {
+            "doc": "",
+            "name": "ApprovedPendingDisbursement"
+          }
+        },
+        {
+          "void_v0": {
+            "doc": "",
+            "name": "Approved"
+          }
+        },
+        {
+          "void_v0": {
+            "doc": "",
+            "name": "Rejected"
+          }
+        },
+        {
+          "void_v0": {
+            "doc": "",
+            "name": "Executed"
+          }
+        },
+        {
+          "void_v0": {
+            "doc": "",
+            "name": "Expired"
+          }
+        },
+        {
+          "void_v0": {
+            "doc": "",
+            "name": "Cancelled"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "udt_struct_v0": {
+      "doc": "",
+      "lib": "",
+      "name": "SeedStakeEntry",
+      "fields": [
+        {
+          "doc": "",
+          "name": "address",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "amount",
+          "type": "i128"
+        }
+      ]
+    }
+  },
+  {
+    "udt_struct_v0": {
+      "doc": "Pending yield for a member. `amount` is stored as the negative yield snapshot\\nso the existing `get_pending_yield` formula `(accumulator - snapshot).max(0)`\\nreconstructs the correct value from a fresh accumulator of 0 (#332).",
+      "lib": "",
+      "name": "SeedYieldEntry",
+      "fields": [
+        {
+          "doc": "",
+          "name": "address",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "amount",
+          "type": "i128"
+        }
+      ]
+    }
+  },
+  {
+    "udt_struct_v0": {
+      "doc": "Structured event emitted when a borrower edits loan proposal terms.\\nCaptures prior and updated terms plus the edit timestamp.",
+      "lib": "",
+      "name": "LoanTermsEdited",
+      "fields": [
+        {
+          "doc": "",
+          "name": "borrower",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "edited_at",
+          "type": "u64"
+        },
+        {
+          "doc": "",
+          "name": "new_amount",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "prev_amount",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "prev_total_repayment",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "proposal_id",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "total_repayment",
+          "type": "i128"
+        }
+      ]
+    }
+  },
+  {
+    "udt_struct_v0": {
+      "doc": "On-chain credit track record for a member. Returned by\\n`get_member_loan_stats` as an O(1) read of the member record.",
+      "lib": "",
+      "name": "MemberLoanStats",
+      "fields": [
+        {
+          "doc": "",
+          "name": "active_loans",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "repaid_loans",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "total_loans",
+          "type": "u32"
+        }
+      ]
+    }
+  },
+  {
+    "udt_struct_v0": {
+      "doc": "",
+      "lib": "",
+      "name": "TreasuryProposal",
+      "fields": [
+        {
+          "doc": "Active-member count when the proposal was created. See\\n`LoanProposal.active_members` (#73).",
+          "name": "active_members",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "against_votes",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "amount",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "created_at",
+          "type": "u64"
+        },
+        {
+          "doc": "",
+          "name": "destination",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "for_votes",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "id",
+          "type": "u32"
+        },
+        {
+          "doc": "When true, votes must be committed then revealed (commit-reveal privacy).",
+          "name": "private",
+          "type": "bool"
+        },
+        {
+          "doc": "",
+          "name": "proposer",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "reason",
+          "type": "string"
+        },
+        {
+          "doc": "",
+          "name": "status",
+          "type": {
+            "udt": {
+              "name": "ProposalStatus"
+            }
+          }
+        },
+        {
+          "doc": "",
+          "name": "treasury_threshold",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "votes_cast",
+          "type": "u32"
+        },
+        {
+          "doc": "",
+          "name": "voting_period",
+          "type": "u64"
+        }
+      ]
+    }
+  },
+  {
+    "udt_struct_v0": {
+      "doc": "Per-asset reconciliation figures returned by `get_treasury_accounting`\\n(#288), so auditors can compare what the contract accounts for against\\nwhat it actually holds.",
+      "lib": "",
+      "name": "TreasuryAccounting",
+      "fields": [
+        {
+          "doc": "Principal still owed on `Active` loans in the asset. Lent out, so not\\npart of `token_balance`.",
+          "name": "outstanding_principal",
+          "type": "i128"
+        },
+        {
+          "doc": "Portion of `token_balance` held as member stake. Staking only happens\\nin the base token, so this is zero for every other asset.",
+          "name": "staked",
+          "type": "i128"
+        },
+        {
+          "doc": "The contract's actual balance of the asset, as reported by its token.",
+          "name": "token_balance",
+          "type": "i128"
+        }
+      ]
+    }
+  },
+  {
+    "udt_struct_v0": {
+      "doc": "Pending policy update undergoing timelock delay (#192).",
+      "lib": "",
+      "name": "PendingPolicyUpdate",
+      "fields": [
+        {
+          "doc": "",
+          "name": "execution_time",
+          "type": "u64"
+        },
+        {
+          "doc": "",
+          "name": "policy",
+          "type": {
+            "udt": {
+              "name": "LoanPolicy"
+            }
+          }
+        },
+        {
+          "doc": "",
+          "name": "proposed_at",
+          "type": "u64"
+        }
+      ]
+    }
+  },
+  {
+    "udt_struct_v0": {
+      "doc": "Structured event emitted upon staking reward claim (#193).",
+      "lib": "",
+      "name": "StakingRewardClaimed",
+      "fields": [
+        {
+          "doc": "",
+          "name": "amount",
+          "type": "i128"
+        },
+        {
+          "doc": "",
+          "name": "member",
+          "type": "address"
+        },
+        {
+          "doc": "",
+          "name": "timestamp",
+          "type": "u64"
+        }
+      ]
+    }
+  },
+  {
+    "udt_union_v0": {
+      "doc": "Distinguishes which proposal family a shared reference (docs, commits) targets.",
+      "lib": "",
+      "name": "ProposalKind",
+      "cases": [
+        {
+          "void_v0": {
+            "doc": "",
+            "name": "Loan"
+          }
+        },
+        {
+          "void_v0": {
+            "doc": "",
+            "name": "Treasury"
+          }
+        }
+      ]
+    }
+  }
+]

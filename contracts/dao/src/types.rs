@@ -2,6 +2,8 @@ use soroban_sdk::{contracttype, Address, Bytes, String, Vec};
 
 /// Basis-points denominator (100% == 10_000).
 pub const BASIS_POINTS: i128 = 10_000;
+/// Integer one used by percentage and vote-weight calculations.
+pub const ONE: i128 = 1;
 /// Maximum number of treasury assets, including the immutable base token.
 pub const MAX_WHITELISTED_TOKENS: u32 = 10;
 /// Minimum length for a registered name (inclusive).

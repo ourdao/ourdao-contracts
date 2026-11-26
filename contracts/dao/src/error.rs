@@ -103,4 +103,20 @@ pub enum Error {
     /// A returning member still has a loan outstanding or a defaulted loan on
     /// record, so they may not rejoin and reset their standing (#168).
     DefaultedLoanOutstanding = 94,
+    // 95-100 restore variants that concurrent merges each numbered 92-97 and
+    // that a later merge dropped while their call sites stayed in place. They
+    // are appended rather than reclaiming those slots, so no shipped code moves.
+    /// The treasury asset whitelist has reached its bounded maximum (#282).
+    WhitelistFull = 95,
+    /// An inbound token transfer delivered less than the requested amount (#283).
+    TransferAmountMismatch = 96,
+    /// The voter joined (or rejoined) the DAO after the proposal was created,
+    /// so they are outside the electorate its quorum was fixed against (#73).
+    JoinedAfterProposal = 97,
+    /// Admin list has reached MAX_ADMINS; remove one before adding another (#68).
+    TooManyAdmins = 98,
+    /// Batch vote call exceeded the maximum number of votes allowed per call.
+    TooManyVotesInBatch = 99,
+    /// Checked `i128` arithmetic overflowed; the operation was rejected.
+    ArithmeticOverflow = 100,
 }

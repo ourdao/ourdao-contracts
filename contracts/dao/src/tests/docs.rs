@@ -112,8 +112,7 @@ fn attach_document_treasury_proposal_proposer_and_non_proposer() {
 
     // Once voting begins, the evidence becomes immutable just like a loan
     // document after its editing phase.
-    s.client
-        .vote_on_treasury_proposal(&stranger, &pid, &true);
+    s.client.vote_on_treasury_proposal(&stranger, &pid, &true);
     let cid3 = Bytes::from_array(&s.env, b"QmTreasuryProposalCid789");
     assert_eq!(
         s.client

@@ -139,7 +139,7 @@ pub fn tally(
     // electorate rule for both open votes and commit-reveal reveals (#73).
     let member = storage::get_member(env, voter).ok_or(Error::NotMember)?;
     util::require_in_electorate(&member, proposal.created_at)?;
-      proposal.votes_cast = proposal.votes_cast.saturating_add(1);
+    proposal.votes_cast = proposal.votes_cast.saturating_add(1);
 
     let weight = util::voting_weight(env, voter);
     if support {
@@ -314,10 +314,8 @@ pub fn expire_treasury_proposal(env: &Env, proposal_id: u32) -> Result<(), Error
     if env.ledger().timestamp() > voting_end {
         proposal.status = ProposalStatus::Expired;
         storage::set_treasury_proposal(env, &proposal);
-        env.events().publish(
-            (crate::events::TRE_EXP,),
-            (proposal_id, proposal.proposer),
-        );
+        env.events()
+            .publish((crate::events::TRE_EXP,), (proposal_id, proposal.proposer));
         Ok(())
     } else {
         Err(Error::NotInVotingPhase) // Re-using error

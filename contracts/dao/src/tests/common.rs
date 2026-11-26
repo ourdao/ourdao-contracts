@@ -403,7 +403,6 @@ pub fn assert_prop_cancelled_event(env: &Env, proposal_id: u32) {
     assert_eq!(data[1], ScVal::U64(env.ledger().timestamp()));
 }
 
-
 // Fee-on-transfer mock used to prove repayment accounting checks actual receipt (#283).
 #[soroban_sdk::contracttype]
 #[derive(Clone)]
@@ -442,7 +441,11 @@ impl FeeToken {
             panic!("insufficient balance");
         }
         let to_balance: i128 = env.storage().instance().get(&to_key).unwrap_or(0);
-        env.storage().instance().set(&from_key, &(from_balance - amount));
-        env.storage().instance().set(&to_key, &(to_balance + received));
+        env.storage()
+            .instance()
+            .set(&from_key, &(from_balance - amount));
+        env.storage()
+            .instance()
+            .set(&to_key, &(to_balance + received));
     }
 }

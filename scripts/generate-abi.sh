@@ -2,7 +2,9 @@
 # generate-abi.sh — Issue #135
 #
 # Extracts the contract's XDR spec from the compiled wasm and writes it to
-# contract-interface.json alongside a human-readable summary.
+# contract/contract-interface.json alongside a human-readable summary
+# (contract/interface-summary.txt). Both files are committed (#442) and CI runs
+# --check so they cannot drift from lib.rs.
 #
 # Usage:
 #   ./scripts/generate-abi.sh          # builds and generates
@@ -17,7 +19,10 @@
 
 set -euo pipefail
 
-WASM_PATH="contracts/dao/target/wasm32v1-none/release/ourdao_dao.wasm"
+cd "$(dirname "$0")/.."
+
+# Workspace builds land in the root target/ dir, not the crate's own.
+WASM_PATH="target/wasm32v1-none/release/ourdao_dao.wasm"
 OUT_DIR="contract"
 OUT_JSON="${OUT_DIR}/contract-interface.json"
 OUT_SUMMARY="${OUT_DIR}/interface-summary.txt"
@@ -45,7 +50,7 @@ if $MARKDOWN_MODE; then
 fi
 
 echo "Building contract wasm..."
-cargo build --target wasm32v1-none --release -p ourdao-dao 2>&1 | tail -5
+cargo build --locked --target wasm32v1-none --release -p ourdao-dao 2>&1 | tail -5
 
 if [ ! -f "$WASM_PATH" ]; then
   echo "Error: wasm not found at $WASM_PATH after build" >&2
@@ -54,9 +59,13 @@ fi
 
 mkdir -p "$OUT_DIR"
 FRESH_JSON="$(mktemp)"
+FRESH_SUMMARY="$(mktemp)"
+trap 'rm -f "$FRESH_JSON" "$FRESH_SUMMARY"' EXIT
 
 echo "Extracting contract spec from wasm..."
-stellar contract inspect --wasm "$WASM_PATH" --output json > "$FRESH_JSON"
+# Formatted JSON keeps the committed file reviewable and its diffs readable.
+stellar contract info interface --wasm "$WASM_PATH" --output json-formatted > "$FRESH_JSON"
+stellar contract info interface --wasm "$WASM_PATH" --output rust > "$FRESH_SUMMARY"
 
 if $CHECK_MODE; then
   if [ ! -f "$OUT_JSON" ]; then
@@ -67,7 +76,7 @@ if $CHECK_MODE; then
   if ! diff -q "$OUT_JSON" "$FRESH_JSON" > /dev/null 2>&1; then
     echo "CI drift check FAILED: $OUT_JSON is stale." >&2
     echo "Diff:" >&2
-    diff "$OUT_JSON" "$FRESH_JSON" >&2
+    diff "$OUT_JSON" "$FRESH_JSON" >&2 || true
     echo "" >&2
     echo "Run ./scripts/generate-abi.sh and commit the result." >&2
     exit 1
@@ -75,13 +84,11 @@ if $CHECK_MODE; then
   echo "CI drift check PASSED: $OUT_JSON matches a fresh generation."
 else
   cp "$FRESH_JSON" "$OUT_JSON"
-  # Also write a human-readable summary for the README.
-  stellar contract inspect --wasm "$WASM_PATH" --output xdr-base64-array > "$OUT_SUMMARY" 2>/dev/null || true
+  # Human-readable summary of the same spec, as Rust signatures.
+  cp "$FRESH_SUMMARY" "$OUT_SUMMARY"
   echo "Generated: $OUT_JSON"
   echo "Generated: $OUT_SUMMARY"
   echo ""
-  echo "Remember to commit both files and update README.md to link to"
-  echo "contract/contract-interface.json instead of the hand-written ABI table."
+  echo "Remember to commit both files. README.md links to"
+  echo "contract/contract-interface.json as the generated source of truth."
 fi
-
-rm -f "$FRESH_JSON"

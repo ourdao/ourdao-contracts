@@ -622,10 +622,7 @@ impl OurDao {
     pub fn get_treasury_balances(env: Env) -> Map<Address, i128> {
         let mut balances = Map::new(&env);
         for asset in storage::get_whitelisted_tokens(&env).iter() {
-            balances.set(
-                asset.clone(),
-                util::treasury_balance_in_asset(&env, &asset),
-            );
+            balances.set(asset.clone(), util::treasury_balance_in_asset(&env, &asset));
         }
         balances
     }

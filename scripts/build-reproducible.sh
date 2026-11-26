@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-IMAGE="${REPRO_IMAGE:-ourdao-reproducible:rust-1.98.1-stellar-28.0.0}"
+IMAGE="${REPRO_IMAGE:-ourdao-reproducible:rust-1.100.0-stellar-28.0.0}"
 OUT_A_REL="target/reproducible-a"
 OUT_B_REL="target/reproducible-b"
 OUT_A="$ROOT_DIR/$OUT_A_REL"

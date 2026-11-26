@@ -44,15 +44,13 @@ fn pause_blocks_all_mutating_entrypoints_except_repay() {
     let loan_id = s.client.request_loan(&borrower, &500, &None);
     advance(&s.env, EDITING + 1);
 
-    let treasury_id = s
-        .client
-        .propose_treasury_withdrawal(
-            &borrower,
-            &100,
-            &newcomer,
-            &String::from_str(&s.env, "test"),
-            &false,
-        );
+    let treasury_id = s.client.propose_treasury_withdrawal(
+        &borrower,
+        &100,
+        &newcomer,
+        &String::from_str(&s.env, "test"),
+        &false,
+    );
 
     s.client.pause(&s.admin);
 
@@ -87,16 +85,14 @@ fn pause_blocks_all_mutating_entrypoints_except_repay() {
         EntryPoint {
             name: "set_pauser",
             blocked: matches!(
-                s.client.try_set_pauser(&s.admin, &Address::generate(&s.env)),
+                s.client
+                    .try_set_pauser(&s.admin, &Address::generate(&s.env)),
                 Err(Ok(Error::Paused))
             ),
         },
         EntryPoint {
             name: "revoke_pauser",
-            blocked: matches!(
-                s.client.try_revoke_pauser(&s.admin),
-                Err(Ok(Error::Paused))
-            ),
+            blocked: matches!(s.client.try_revoke_pauser(&s.admin), Err(Ok(Error::Paused))),
         },
         EntryPoint {
             name: "set_consensus_threshold",
@@ -135,17 +131,11 @@ fn pause_blocks_all_mutating_entrypoints_except_repay() {
         },
         EntryPoint {
             name: "pause",
-            blocked: matches!(
-                s.client.try_pause(&s.admin),
-                Err(Ok(Error::Paused))
-            ),
+            blocked: matches!(s.client.try_pause(&s.admin), Err(Ok(Error::Paused))),
         },
         EntryPoint {
             name: "unpause",
-            blocked: matches!(
-                s.client.try_unpause(&s.admin),
-                Err(Ok(_))
-            ),
+            blocked: matches!(s.client.try_unpause(&s.admin), Err(Ok(_))),
         },
         EntryPoint {
             name: "register_member",
@@ -156,10 +146,7 @@ fn pause_blocks_all_mutating_entrypoints_except_repay() {
         },
         EntryPoint {
             name: "exit_dao",
-            blocked: matches!(
-                s.client.try_exit_dao(&borrower),
-                Err(Ok(Error::Paused))
-            ),
+            blocked: matches!(s.client.try_exit_dao(&borrower), Err(Ok(Error::Paused))),
         },
         EntryPoint {
             name: "claim_rewards",
@@ -185,12 +172,8 @@ fn pause_blocks_all_mutating_entrypoints_except_repay() {
         EntryPoint {
             name: "request_loan_in_asset",
             blocked: matches!(
-                s.client.try_request_loan_in_asset(
-                    &borrower,
-                    &100,
-                    &s.client.get_token(),
-                    &None,
-                ),
+                s.client
+                    .try_request_loan_in_asset(&borrower, &100, &s.client.get_token(), &None,),
                 Err(Ok(Error::Paused))
             ),
         },
@@ -294,14 +277,16 @@ fn pause_blocks_all_mutating_entrypoints_except_repay() {
         EntryPoint {
             name: "vote_on_treasury_proposal",
             blocked: matches!(
-                s.client.try_vote_on_treasury_proposal(&voter, &treasury_id, &true),
+                s.client
+                    .try_vote_on_treasury_proposal(&voter, &treasury_id, &true),
                 Err(Ok(Error::Paused))
             ),
         },
         EntryPoint {
             name: "cancel_treasury_proposal",
             blocked: matches!(
-                s.client.try_cancel_treasury_proposal(&borrower, &treasury_id),
+                s.client
+                    .try_cancel_treasury_proposal(&borrower, &treasury_id),
                 Err(Ok(Error::Paused))
             ),
         },
@@ -321,25 +306,17 @@ fn pause_blocks_all_mutating_entrypoints_except_repay() {
         },
         EntryPoint {
             name: "stake",
-            blocked: matches!(
-                s.client.try_stake(&staker, &100),
-                Err(Ok(Error::Paused))
-            ),
+            blocked: matches!(s.client.try_stake(&staker, &100), Err(Ok(Error::Paused))),
         },
         EntryPoint {
             name: "unstake",
-            blocked: matches!(
-                s.client.try_unstake(&staker, &100),
-                Err(Ok(Error::Paused))
-            ),
+            blocked: matches!(s.client.try_unstake(&staker, &100), Err(Ok(Error::Paused))),
         },
         EntryPoint {
             name: "register_name",
             blocked: matches!(
-                s.client.try_register_name(
-                    &borrower,
-                    &String::from_str(&s.env, "member"),
-                ),
+                s.client
+                    .try_register_name(&borrower, &String::from_str(&s.env, "member"),),
                 Err(Ok(Error::Paused))
             ),
         },
@@ -386,7 +363,11 @@ fn pause_blocks_all_mutating_entrypoints_except_repay() {
 
     for case in cases {
         if case.name.starts_with("repay_") {
-            assert!(!case.blocked, "{} must remain callable while paused", case.name);
+            assert!(
+                !case.blocked,
+                "{} must remain callable while paused",
+                case.name
+            );
         } else {
             assert!(case.blocked, "{} must be pause-gated", case.name);
         }
@@ -654,7 +635,10 @@ fn only_admin_can_unpause_even_when_a_dedicated_pauser_exists() {
 
     // The emergency pauser may stop the DAO but must not be able to resume it.
     assert_eq!(s.client.try_unpause(&pauser), Err(Ok(Error::NotAdmin)));
-    assert!(s.client.is_paused(), "unauthorised unpause must not change state");
+    assert!(
+        s.client.is_paused(),
+        "unauthorised unpause must not change state"
+    );
 
     // An unrelated address must likewise be rejected without clearing the pause.
     assert_eq!(s.client.try_unpause(&outsider), Err(Ok(Error::NotAdmin)));
@@ -757,14 +741,20 @@ fn initialize_failure_leaves_no_state_and_allows_subsequent_success() {
 
     // Subsequent initialize with a valid token succeeds
     let sac = env.register_stellar_asset_contract_v2(Address::generate(&env));
-    assert_eq!(client.try_initialize(&admins, &5_100u32, &FEE, &sac.address(), &policy()), Ok(Ok(())));
+    assert_eq!(
+        client.try_initialize(&admins, &5_100u32, &FEE, &sac.address(), &policy()),
+        Ok(Ok(()))
+    );
     assert!(client.is_initialized());
 }
 
 // Issue #497: ProposalVote Copy and Eq/PartialEq derives
 #[test]
 fn proposal_vote_derives_work_as_expected() {
-    let v1 = crate::types::ProposalVote { proposal_id: 1, vote: true };
+    let v1 = crate::types::ProposalVote {
+        proposal_id: 1,
+        vote: true,
+    };
     let v2 = v1; // Copy derive test
     assert_eq!(v1, v2);
 }
@@ -1231,7 +1221,10 @@ fn get_version_and_dao_summary_version_always_agree() {
     let v1 = s.client.get_version();
     let summary = s.client.get_dao_summary();
     assert_eq!(v1, summary.version);
-    assert_eq!(v1, soroban_sdk::String::from_str(&s.env, env!("CARGO_PKG_VERSION")));
+    assert_eq!(
+        v1,
+        soroban_sdk::String::from_str(&s.env, env!("CARGO_PKG_VERSION"))
+    );
 }
 
 // Issue #526: Parametrized pause guards on entrypoints added since PAUSE_FUNCTIONALITY.md
@@ -1253,7 +1246,13 @@ fn test_pause_guards_on_newer_entrypoints() {
     );
 
     // vote_batch blocked
-    let votes = soroban_sdk::vec![&s.env, crate::types::ProposalVote { proposal_id: 1, vote: true }];
+    let votes = soroban_sdk::vec![
+        &s.env,
+        crate::types::ProposalVote {
+            proposal_id: 1,
+            vote: true
+        }
+    ];
     assert_eq!(
         s.client.try_vote_batch(&member, &votes),
         Err(Ok(Error::Paused))
@@ -1276,14 +1275,16 @@ fn test_pause_guards_on_newer_entrypoints() {
 
     // Multi-token loan request blocked
     assert_eq!(
-        s.client.try_request_loan_in_asset(&member, &100, &token, &None),
+        s.client
+            .try_request_loan_in_asset(&member, &100, &token, &None),
         Err(Ok(Error::Paused))
     );
 
     // Multi-token withdrawal proposal blocked
     let reason = soroban_sdk::String::from_str(&s.env, "grant");
     assert_eq!(
-        s.client.try_propose_withdrawal_in_asset(&member, &100, &token, &other, &reason, &false),
+        s.client
+            .try_propose_withdrawal_in_asset(&member, &100, &token, &other, &reason, &false),
         Err(Ok(Error::Paused))
     );
 }
@@ -1292,7 +1293,9 @@ fn test_pause_guards_on_newer_entrypoints() {
 #[test]
 fn removed_token_balance_reporting() {
     let s = setup(1);
-    let other_sac = s.env.register_stellar_asset_contract_v2(Address::generate(&s.env));
+    let other_sac = s
+        .env
+        .register_stellar_asset_contract_v2(Address::generate(&s.env));
     let other_token = other_sac.address();
 
     // Whitelist new token
@@ -1308,7 +1311,6 @@ fn removed_token_balance_reporting() {
     // get_treasury_balance_in_asset reports the token balance accurately
     assert_eq!(s.client.get_treasury_balance_in_asset(&other_token), 0);
 }
-
 
 // Issue #282: the whitelist is bounded so views and exit-basket iteration stay affordable.
 #[test]

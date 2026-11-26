@@ -1,0 +1,9 @@
+# Single source of truth for the Rust compiler (#240). Local builds, CI
+# (.github/workflows/ci.yml, release.yml) and Dockerfile.reproducible all use
+# this channel, so `rustc -V` matches everywhere. Bump all three together.
+[toolchain]
+channel = "1.100.0"
+components = ["rustfmt", "clippy"]
+# Must match WASM_TARGET in .github/workflows/ci.yml.
+targets = ["wasm32v1-none"]
+profile = "minimal"

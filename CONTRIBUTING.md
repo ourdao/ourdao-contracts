@@ -43,13 +43,14 @@ sudo apt-get update
 sudo apt-get install -y build-essential curl git pkg-config libssl-dev
 ```
 
-Install stable Rust with the formatting and lint components and the Soroban WASM target. Rust 1.84 is the minimum supported version.
+Install rustup. The exact Rust version, the `rustfmt`/`clippy` components and the Soroban WASM target are pinned in [`rust-toolchain.toml`](rust-toolchain.toml), which CI and `Dockerfile.reproducible` also use, so running `rustup toolchain install` inside the repository gives you the same `rustc -V` as CI. Rust 1.84 is the minimum supported version (checked by CI's MSRV job).
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 source "$HOME/.cargo/env"
-rustup toolchain install stable --component rustfmt --component clippy --target wasm32v1-none
-rustup default stable
+cd ourdao-contracts   # after cloning (below)
+rustup toolchain install
+rustc -V
 ```
 
 Install the Stellar CLI and the coverage tool:
@@ -101,6 +102,17 @@ cargo build --locked --target wasm32v1-none --release        # wasm build
 `make ci` runs the all-targets check, formatting, lint, tests, coverage, and WebAssembly build — use it as your one-command pre-push check. The `make check` and `make coverage` targets reproduce their CI commands; `make fmt`, `make clippy`, `make test`, and `make build` map to the corresponding CI steps. The Docker-based reproducible build remains a separate CI gate.
 
 A separate `audit` job runs `cargo audit` against `Cargo.lock` on every push and PR (`cargo install cargo-audit --locked` once locally, then `cargo audit` or `make audit`). It's a distinct job on purpose: an advisory landing against a dependency we already know about and can't move on (see the `ed25519-dalek` note below) shouldn't block merging unrelated PRs, but it still needs to stay visible.
+
+### Generated ABI and TypeScript bindings
+
+`contract/contract-interface.json` (with `contract/interface-summary.txt`) and the TypeScript client in `bindings/ts/` are generated from the contract wasm and committed. The CI `generated-artifacts` job regenerates both and fails if either has drifted, so **any change to a public entrypoint, argument, return type, error code or `#[contracttype]` must regenerate and commit them in the same PR**:
+
+```bash
+make abi        # ./scripts/generate-abi.sh      -> contract/
+make bindings   # ./scripts/generate-bindings.sh -> bindings/ts/
+```
+
+Both need the stellar CLI version pinned as `STELLAR_CLI_VERSION` in `.github/workflows/ci.yml`; a different CLI release can produce different output. `./scripts/generate-abi.sh --check` and `./scripts/generate-bindings.sh --check` reproduce the CI checks locally. Don't hand-edit the generated files.
 
 If Clippy flags something you believe is wrong for this codebase, `#[allow(...)]` it at the narrowest possible scope — a single item or expression, never crate- or module-level — with a one-line comment explaining why.
 

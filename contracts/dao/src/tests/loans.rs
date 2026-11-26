@@ -1613,7 +1613,8 @@ fn token_cannot_be_removed_until_its_loan_is_repaid() {
         &borrower,
         loan.total_repayment - loan.principal,
     );
-    s.client.repay_loan_in_asset(&borrower, &proposal_id, &asset.address);
+    s.client
+        .repay_loan_in_asset(&borrower, &proposal_id, &asset.address);
 
     let treasury_balance = asset.balance(&s.client.address);
     soroban_sdk::token::StellarAssetClient::new(&s.env, &asset.address)
@@ -1621,7 +1622,6 @@ fn token_cannot_be_removed_until_its_loan_is_repaid() {
     s.client.remove_token(&s.admin, &asset.address);
     assert!(!s.client.is_token_whitelisted(&asset.address));
 }
-
 
 // Issue #278: naming the wrong repayment asset must fail before any transfer.
 #[test]
@@ -1731,11 +1731,7 @@ fn post_due_partial_repayment_adds_late_fee_before_payment() {
     s.client.repay_loan_partial(&borrower, &pid, &100);
 
     let after = s.client.get_loan(&pid).unwrap();
-    let expected_fee =
-        (before.total_repayment * 2_000 + 10_000 - 1) / 10_000;
-    assert_eq!(
-        after.total_repayment,
-        before.total_repayment + expected_fee
-    );
+    let expected_fee = (before.total_repayment * 2_000 + 10_000 - 1) / 10_000;
+    assert_eq!(after.total_repayment, before.total_repayment + expected_fee);
     assert_eq!(after.amount_repaid, 100);
 }

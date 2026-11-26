@@ -1,7 +1,7 @@
 WASM_TARGET := wasm32v1-none
 WASM := target/$(WASM_TARGET)/release/ourdao_dao.wasm
 
-.PHONY: all build test fmt clippy check coverage audit ci clean optimize size costs bindings
+.PHONY: all build test fmt clippy check coverage audit ci clean optimize size costs abi bindings
 
 all: fmt clippy test build
 
@@ -29,8 +29,12 @@ size: build $(OPTIMIZED)
 costs: $(OPTIMIZED)
 	OURDAO_WASM=$(CURDIR)/$(OPTIMIZED) cargo test --locked --lib costs -- --ignored --nocapture --test-threads=1
 
-bindings: generate-bindings
-	@echo "TypeScript bindings are at bindings/ts/"
+# Regenerates the committed ABI (contract/) and TS bindings (bindings/ts/).
+abi:
+	./scripts/generate-abi.sh
+
+bindings:
+	./scripts/generate-bindings.sh
 
 fmt:
 	cargo fmt --all -- --check
