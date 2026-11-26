@@ -177,7 +177,6 @@ The generated source of truth for the full interface (every argument, return typ
 | `attach_document` |
 | `get_document` |
 | `get_member` |
-| `try_execute_policy_update` |
 | `get_member_loan_stats` |
 | `get_member_overview` |
 | `get_loan` |
@@ -244,7 +243,7 @@ Each published topic and its event payload are listed below. `ourdao-backend` in
 | `prev` | `(old_pauser, caller)` | `revoke_pauser` |
 | `threshold` | `(old_threshold, new_threshold)` | `set_consensus_threshold` |
 | `pol_prop` | `(caller, execution_time)` | `propose_policy_update` |
-| `policy` | `(old_policy, new_policy)` | `execute_policy_update` / `try_execute_policy_update` |
+| `policy` | `(old_policy, new_policy)` | `execute_policy_update` |
 | `pol_canc` | `caller` | `cancel_policy_update` |
 | `paused` | `caller` | `pause` |
 | `unpaused` | `caller` | `unpause` |

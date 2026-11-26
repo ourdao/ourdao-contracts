@@ -47,11 +47,14 @@ greater than zero.
 boundary on how long a defaulted loan can sit before it becomes markable.
 A very long `max_loan_duration` plus a long `grace_period` can leave bad
 debt open for years.  
-**Safe range:** `1..=u64::MAX`; policy validation requires a non-zero value
-but does not impose an upper bound.
+**Safe range:** `1..=31_536_000` (1 second to 365 days).
 **Example:** `2_592_000` (30 days).
-**Validation:** Must be non-zero. `validate_policy` does not cap this, so
-choose carefully.
+**Validation:** Must be non-zero and at most `admin::MAX_LOAN_DURATION`
+(`31_536_000` s, 365 days); `validate_policy` rejects anything longer with
+`InvalidLoanPolicy`, at `initialize` and on `propose_policy_update` alike.
+The cap is longer than the 30-day cap on the other policy durations because a
+loan term is not a governance window, but it still bounds how long a defaulted
+loan can stay open before it becomes markable.
 
 ---
 
@@ -149,7 +152,7 @@ window because `disburse_approved_loan` can only be called after voting closes.
 **Units:** basis points of the total weighted vote.  
 **What it controls:** The approval threshold for treasury-withdrawal proposals
 (not loan proposals — those use `quorum_bps`, falling back to the
-DAO-wide `consensus_threshold` only for an initial/legacy zero setting).
+DAO-wide `consensus_threshold` when `quorum_bps` is `0`).
 **Safe range:** `1..=10_000` (0.01%–100%).
 **Example:** `5_100` (51%).
 
@@ -160,11 +163,14 @@ DAO-wide `consensus_threshold` only for an initial/legacy zero setting).
 10_000 bp = 100%).
 **What it controls:** The approval threshold for loan proposals. It is
 independent of `treasury_threshold`, which applies to treasury withdrawals.
-When non-zero, it overrides the DAO-wide `consensus_threshold`; loan proposals
-created under the legacy zero setting fall back to that consensus threshold.
-**Safe range:** `1..=10_000` for proposed policy updates. A zero value is
-accepted in the initial/legacy policy for the fallback behavior, but cannot be
-used in a new policy update.
+When non-zero, it overrides the DAO-wide `consensus_threshold`; when `0`, loan
+votes fall back to that consensus threshold.
+**Safe range:** `0..=10_000`. `0` is the documented fallback sentinel, not
+"no quorum": the tally uses `consensus_threshold` instead.
+**Validation:** `initialize` and `propose_policy_update` share
+`validate_policy` and accept the same range, so a DAO started with the `0`
+fallback can keep it, or return to it, through a normal policy update. Values
+above `10_000` are rejected with `InvalidLoanPolicy`.
 **Example:** `5_100` (51%) requires a majority of weighted member votes.
 
 ---
@@ -387,7 +393,7 @@ the liquidity needs of its members.
 |---|---|
 | `max_loan_to_treasury_ratio = 0` | Rejected by policy validation; governance must choose a non-zero exposure ceiling. |
 | `editing_period + voting_period` > members' patience | Proposals expire before gathering quorum; effective lending rate approaches zero. |
-| `max_loan_duration` >> `default_grace_period` | A defaulted loan can sit in limbo for the full loan duration before anyone can act. |
+| `max_loan_duration` >> `default_grace_period` | A defaulted loan can sit in limbo for the full loan duration (at most 365 days) before anyone can act. |
 | `min_membership_duration` > age of the DAO | No member is old enough to borrow. |
 | `cooldown_period` > `max_loan_duration` | A borrower cannot request a second loan until the cooldown clears, even if they repaid early. Usually fine; document if intentional. |
 

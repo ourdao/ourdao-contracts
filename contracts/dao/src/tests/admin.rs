@@ -769,14 +769,41 @@ fn validate_policy_rejects_quorum_bps_above_basis_points() {
     assert_eq!(res, Err(Ok(Error::InvalidLoanPolicy)));
 }
 
-// Issue #320: Validate quorum_bps within 1..=10000 on policy updates
+// Issue #450: `quorum_bps == 0` is the fallback-to-consensus sentinel. It is
+// accepted at initialize, so it must be accepted on a policy update too.
 #[test]
-fn validate_policy_rejects_zero_quorum_bps() {
+fn initialize_and_propose_policy_update_agree_on_zero_quorum_bps() {
     let mut p = policy();
     p.quorum_bps = 0;
+
+    let env = Env::default();
+    env.mock_all_auths();
+    let token = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    let client = OurDaoClient::new(&env, &env.register(OurDao, ()));
+    let admin = Address::generate(&env);
+    let mut admins = Vec::new(&env);
+    admins.push_back(admin.clone());
+    assert_eq!(
+        client.try_initialize(&admins, &5_100, &FEE, &token, &p),
+        Ok(Ok(()))
+    );
+
+    // Move a DAO to an explicit quorum, then back to the sentinel: the update
+    // path must accept and apply `quorum_bps == 0` just as initialize did.
     let s = setup(1);
-    let res = s.client.try_propose_policy_update(&s.admin, &p);
-    assert_eq!(res, Err(Ok(Error::InvalidLoanPolicy)));
+    let mut explicit = p.clone();
+    explicit.quorum_bps = 5_000;
+    s.client.propose_policy_update(&s.admin, &explicit);
+    advance(&s.env, TIMELOCK_DURATION);
+    s.client.execute_policy_update(&s.admin);
+    assert_eq!(s.client.get_loan_policy().quorum_bps, 5_000);
+
+    assert_eq!(s.client.try_propose_policy_update(&s.admin, &p), Ok(Ok(())));
+    advance(&s.env, TIMELOCK_DURATION);
+    s.client.execute_policy_update(&s.admin);
+    assert_eq!(s.client.get_loan_policy().quorum_bps, 0);
 }
 
 /// Every bound enforced by `admin::validate_policy` is exercised here. This
@@ -787,6 +814,7 @@ fn propose_policy_update_rejects_every_invalid_bound() {
     let cases: [fn(&mut crate::types::LoanPolicy); 19] = [
         |p| p.membership_contribution = 0,
         |p| p.max_loan_duration = 0,
+        |p| p.max_loan_duration = crate::admin::MAX_LOAN_DURATION + 1,
         |p| p.min_interest_rate = 10_001,
         |p| p.max_interest_rate = 10_001,
         |p| {
@@ -804,7 +832,6 @@ fn propose_policy_update_rejects_every_invalid_bound() {
         |p| p.default_grace_period = 30 * 24 * 60 * 60 + 1,
         |p| p.treasury_threshold = 0,
         |p| p.treasury_threshold = 10_001,
-        |p| p.quorum_bps = 0,
         |p| p.quorum_bps = 10_001,
     ];
     for mutate in cases {
@@ -1391,4 +1418,81 @@ fn token_add_and_remove_events_include_proposal_id_and_caller() {
     assert_eq!(remove_data[0], ScVal::U32(0));
     assert!(matches!(&remove_data[1], ScVal::Address(_)));
     assert!(matches!(&remove_data[2], ScVal::Address(_)));
+}
+
+// Issue #449: `max_loan_duration` is capped like every other policy duration,
+// both at initialize and on a policy update.
+#[test]
+fn max_loan_duration_above_cap_is_rejected_at_initialize_and_update() {
+    use crate::admin::MAX_LOAN_DURATION;
+
+    let mut too_long = policy();
+    too_long.max_loan_duration = MAX_LOAN_DURATION + 1;
+
+    let env = Env::default();
+    env.mock_all_auths();
+    let token = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    let client = OurDaoClient::new(&env, &env.register(OurDao, ()));
+    let mut admins = Vec::new(&env);
+    admins.push_back(Address::generate(&env));
+    assert_eq!(
+        client.try_initialize(&admins, &5_100, &FEE, &token, &too_long),
+        Err(Ok(Error::InvalidLoanPolicy))
+    );
+
+    let s = setup(1);
+    assert_eq!(
+        s.client.try_propose_policy_update(&s.admin, &too_long),
+        Err(Ok(Error::InvalidLoanPolicy))
+    );
+
+    // The cap itself is a valid term.
+    let mut at_cap = policy();
+    at_cap.max_loan_duration = MAX_LOAN_DURATION;
+    assert_eq!(
+        s.client.try_propose_policy_update(&s.admin, &at_cap),
+        Ok(Ok(()))
+    );
+    assert_eq!(
+        client.try_initialize(&admins, &5_100, &FEE, &token, &at_cap),
+        Ok(Ok(()))
+    );
+}
+
+// Issue #447: `execute_policy_update` is the only way to apply a pending
+// policy, and its `policy` event carries `(old_policy, new_policy)` rather
+// than the removed duplicate's `(pending, pending)` payload.
+#[test]
+fn execute_policy_update_event_carries_old_and_new_policy() {
+    use soroban_sdk::{TryFromVal, Val};
+
+    let s = setup(1);
+    let old = s.client.get_loan_policy();
+    let mut new = old.clone();
+    new.min_interest_rate = 700;
+    s.client.propose_policy_update(&s.admin, &new);
+    advance(&s.env, TIMELOCK_DURATION);
+    s.client.execute_policy_update(&s.admin);
+
+    let all = s.env.events().all();
+    let event = all
+        .events()
+        .iter()
+        .rev()
+        .find(|e| {
+            let ContractEventBody::V0(body) = &e.body;
+            matches!(body.topics.first(), Some(ScVal::Symbol(sym)) if sym.0.to_utf8_string_lossy() == "policy")
+        })
+        .expect("policy event not found")
+        .clone();
+    let ContractEventBody::V0(body) = &event.body;
+    let data = Val::try_from_val(&s.env, &body.data).unwrap();
+    let (emitted_old, emitted_new) =
+        <(crate::types::LoanPolicy, crate::types::LoanPolicy)>::try_from_val(&s.env, &data)
+            .unwrap();
+    assert_eq!(emitted_old, old);
+    assert_eq!(emitted_new, new);
+    assert_ne!(emitted_old, emitted_new);
 }

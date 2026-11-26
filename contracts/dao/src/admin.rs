@@ -11,9 +11,27 @@ use crate::util;
 /// Timelock delay between proposing and executing a policy update (48 hours in seconds).
 pub const TIMELOCK_DURATION: u64 = 48 * 60 * 60;
 
+/// Upper bound on the policy's governance and membership windows
+/// (`editing_period`, `voting_period`, `min_membership_duration`,
+/// `cooldown_period`, `default_grace_period`): 30 days in seconds.
+pub const MAX_POLICY_WINDOW: u64 = 30 * 24 * 60 * 60;
+
+/// Upper bound on `max_loan_duration`: 365 days in seconds (#449). A loan term
+/// is legitimately longer than a voting window, so it gets its own ceiling
+/// rather than `MAX_POLICY_WINDOW`, but one year still keeps a defaulted
+/// loan's bad debt from staying open for years before it can be marked.
+pub const MAX_LOAN_DURATION: u64 = 365 * 24 * 60 * 60;
+
+/// Shared by `initialize` and `propose_policy_update`, so a policy is valid at
+/// genesis exactly when it is valid as an update.
+///
+/// `quorum_bps == 0` is accepted on both paths: it is the documented sentinel
+/// that makes loan votes fall back to the DAO-wide `consensus_threshold`
+/// (see `loans::vote_on_loan_proposal_internal`, #450).
 fn validate_policy(policy: &LoanPolicy) -> Result<(), Error> {
     if policy.membership_contribution <= 0
         || policy.max_loan_duration == 0
+        || policy.max_loan_duration > MAX_LOAN_DURATION
         || policy.min_interest_rate as i128 > BASIS_POINTS
         || policy.max_interest_rate as i128 > BASIS_POINTS
         || policy.min_interest_rate > policy.max_interest_rate
@@ -22,11 +40,11 @@ fn validate_policy(policy: &LoanPolicy) -> Result<(), Error> {
         || policy.default_penalty_bps as i128 > BASIS_POINTS
         || policy.editing_period == 0
         || policy.voting_period == 0
-        || policy.editing_period > 30 * 24 * 60 * 60
-        || policy.voting_period > 30 * 24 * 60 * 60
-        || policy.min_membership_duration > 30 * 24 * 60 * 60
-        || policy.cooldown_period > 30 * 24 * 60 * 60
-        || policy.default_grace_period > 30 * 24 * 60 * 60
+        || policy.editing_period > MAX_POLICY_WINDOW
+        || policy.voting_period > MAX_POLICY_WINDOW
+        || policy.min_membership_duration > MAX_POLICY_WINDOW
+        || policy.cooldown_period > MAX_POLICY_WINDOW
+        || policy.default_grace_period > MAX_POLICY_WINDOW
         || policy.treasury_threshold == 0
         || policy.treasury_threshold as i128 > BASIS_POINTS
         || policy.quorum_bps as i128 > BASIS_POINTS
@@ -187,16 +205,7 @@ pub fn set_consensus_threshold(env: &Env, caller: Address, threshold: u32) -> Re
 #[allow(deprecated)]
 pub fn propose_policy_update(env: &Env, caller: Address, policy: LoanPolicy) -> Result<(), Error> {
     util::auth_admin(env, &caller)?;
-    if policy.quorum_bps == 0 {
-        return Err(Error::InvalidLoanPolicy);
-    }
     validate_policy(&policy)?;
-    if policy.treasury_threshold == 0 || policy.treasury_threshold as i128 > BASIS_POINTS {
-        return Err(Error::InvalidLoanPolicy);
-    }
-    if policy.quorum_bps == 0 || policy.quorum_bps as i128 > BASIS_POINTS {
-        return Err(Error::InvalidLoanPolicy);
-    }
     let now = env.ledger().timestamp();
     let execution_time = now + TIMELOCK_DURATION;
     let update = PendingPolicyUpdate {
@@ -211,6 +220,14 @@ pub fn propose_policy_update(env: &Env, caller: Address, policy: LoanPolicy) -> 
     Ok(())
 }
 
+/// The single entrypoint that applies a pending policy update (#447).
+///
+/// There is deliberately no separate `try_execute_policy_update`: it only
+/// duplicated this function, and a contract function with that name would
+/// collide with the `try_execute_policy_update` method the SDK already
+/// generates on `OurDaoClient` for this one. Applying a policy is an admin
+/// action, so there is no keeper use case for a non-reverting variant either;
+/// callers that want a `Result` instead of a trap use the client's `try_` form.
 #[allow(deprecated)]
 pub fn execute_policy_update(env: &Env, caller: Address) -> Result<(), Error> {
     util::auth_admin(env, &caller)?;

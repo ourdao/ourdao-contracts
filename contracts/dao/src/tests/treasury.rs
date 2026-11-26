@@ -187,6 +187,95 @@ fn treasury_withdrawal_blocked_by_approved_pending_loan() {
     assert_eq!(too_much, Err(Ok(Error::InsufficientTreasury)));
 }
 
+// Issue #451: a treasury withdrawal parked in ApprovedPendingDisbursement
+// reserves its amount just like an approved loan does (#172).
+
+/// 4 members => treasury 4000. Pays out 2000, then approves a 2500 withdrawal
+/// the remaining 2000 can't cover, so it parks in ApprovedPendingDisbursement.
+/// Leaves treasury 2000 with 2500 reserved.
+fn park_treasury_withdrawal(s: &Setup) -> u32 {
+    let p = s.members.get(0).unwrap();
+    let v1 = s.members.get(1).unwrap();
+    let v2 = s.members.get(2).unwrap();
+    let dest = Address::generate(&s.env);
+    let reason = String::from_str(&s.env, "grant");
+
+    let first = s
+        .client
+        .propose_treasury_withdrawal(&p, &2_000, &dest, &reason, &false);
+    let parked = s
+        .client
+        .propose_treasury_withdrawal(&p, &2_500, &dest, &reason, &false);
+    for voter in [&p, &v1, &v2] {
+        s.client.vote_on_treasury_proposal(voter, &first, &true);
+    }
+    for voter in [&p, &v1, &v2] {
+        s.client.vote_on_treasury_proposal(voter, &parked, &true);
+    }
+    assert_eq!(
+        s.client.get_treasury_proposal(&parked).unwrap().status,
+        ProposalStatus::ApprovedPendingDisbursement
+    );
+    assert_eq!(s.client.get_treasury_balance(), 2_000);
+    parked
+}
+
+#[test]
+fn treasury_withdrawal_blocked_by_approved_pending_withdrawal() {
+    let s = setup(4);
+    let parked = park_treasury_withdrawal(&s);
+    let v3 = s.members.get(3).unwrap();
+    let dest = Address::generate(&s.env);
+    let reason = String::from_str(&s.env, "second grant");
+
+    // treasury=2000, reserved=2500 => available=-500. Before #451 the whole
+    // 2000 counted as available and this was accepted.
+    assert_eq!(
+        s.client
+            .try_propose_treasury_withdrawal(&v3, &1, &dest, &reason, &false),
+        Err(Ok(Error::InsufficientTreasury))
+    );
+
+    refill_treasury(&s);
+    refill_treasury(&s); // treasury 4000, reserved 2500, available 1500
+    assert_eq!(
+        s.client
+            .try_propose_treasury_withdrawal(&v3, &1_501, &dest, &reason, &false),
+        Err(Ok(Error::InsufficientTreasury))
+    );
+    s.client
+        .propose_treasury_withdrawal(&v3, &1_500, &dest, &reason, &false);
+
+    // Once the parked withdrawal is paid out it no longer reserves anything.
+    s.client.execute_treasury_proposal(&parked);
+    assert_eq!(s.client.get_treasury_balance(), 1_500);
+    s.client
+        .propose_treasury_withdrawal(&v3, &1_500, &dest, &reason, &false);
+}
+
+#[test]
+fn loan_request_capped_by_approved_pending_withdrawal() {
+    let s = setup(4);
+    park_treasury_withdrawal(&s);
+    let borrower = s.members.get(3).unwrap();
+
+    // treasury=2000, reserved=2500 => nothing to lend against. Before #451
+    // the 50% ratio cap allowed a 1000 loan here.
+    assert_eq!(
+        s.client.try_request_loan(&borrower, &1, &None),
+        Err(Ok(Error::ExceedsTreasuryRatio))
+    );
+
+    refill_treasury(&s);
+    refill_treasury(&s);
+    refill_treasury(&s); // treasury 5000, reserved 2500 => cap 50% of 2500
+    assert_eq!(
+        s.client.try_request_loan(&borrower, &1_251, &None),
+        Err(Ok(Error::ExceedsTreasuryRatio))
+    );
+    s.client.request_loan(&borrower, &1_250, &None);
+}
+
 // ==================== issue #236: withdrawals in a second asset ====================
 
 #[test]
